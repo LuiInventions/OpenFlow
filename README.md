@@ -34,6 +34,16 @@ When idle, the floating bar collapses into a subtle, symmetrically clipped pure-
 
 ---
 
+## New: Commands — Run Your Scripts from the Bubble
+
+<p align="center">
+  <img src="docs/commands.png" alt="OpenFlow Commands feature: create .bat, .ps1 or .cmd scripts in a 3-step wizard (choose type, name, edit) and run them with administrator rights via UAC directly from the floating bubble." width="100%">
+</p>
+
+The new **Commands** tab lets you create, search and manage your own Windows scripts (`.bat`, `.ps1`, `.cmd`). A 3-step wizard guides you through picking the script type, giving it a name (the extension is fixed automatically) and writing the script in the built-in editor. Every command can be launched with administrator rights (UAC prompt) straight from the floating bubble or the app, and its bubble icon can be reordered in **Settings › Manage Elements**.
+
+---
+
 ## Application UI & Workspace Tabs
 
 <p align="center">
