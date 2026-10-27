@@ -24,6 +24,8 @@ app.commandLine.appendSwitch("ignore-certificate-errors");
 let mainWindow = null;
 let overlayWindow = null;
 let noteWindow = null;
+let noteSessions = [];
+let voiceNoteWindow = null;
 let noteDownloadWindow = null;
 let noteHistoryWindow = null;
 let noteHistoryNoteId = "";
@@ -183,7 +185,7 @@ function endDictate() {
 
 function sendNoteVoice(message) {
   // Voice notes stream either into the floating note pad or into the note editor of the main app.
-  const target = voiceNoteTarget === "desk" ? mainWindow : noteWindow;
+  const target = voiceNoteTarget === "desk" ? mainWindow : (voiceNoteWindow || primaryNoteWindow());
   if (!target || target.isDestroyed()) return;
   const deliver = () => {
     if (target && !target.isDestroyed()) target.webContents.send("note-voice", message);
@@ -201,11 +203,10 @@ function startVoiceNote(target) {
     voiceNoteTarget = "desk";
   } else {
     voiceNoteTarget = "note";
-    if (!noteWindow || noteWindow.isDestroyed() || !noteWindow.isVisible()) {
-      showNotePad("");
-    } else {
-      noteWindow.focus();
-    }
+    let win = primaryNoteWindow();
+    if (!win || win.isDestroyed() || !win.isVisible()) win = showNotePad("");
+    else win.focus();
+    voiceNoteWindow = win;
   }
   sendNoteVoice({ type: "start" });
   beginDictate(0, "voicenote");
@@ -268,40 +269,115 @@ function placeBar(width, height) {
   overlayWindow.setBounds(next);
 }
 
+const NOTE_WIDTH = 620;
+const NOTE_HEIGHT = 450;
+
+function liveNoteSessions() {
+  noteSessions = noteSessions.filter((session) => session.win && !session.win.isDestroyed());
+  return noteSessions;
+}
+
+function rememberNoteWindow(win) {
+  if (win && !win.isDestroyed()) noteWindow = win;
+  else {
+    const sessions = liveNoteSessions();
+    noteWindow = sessions.length ? sessions[sessions.length - 1].win : null;
+  }
+}
+
+function sessionForWindow(win) {
+  if (!win) return null;
+  return liveNoteSessions().find((session) => session.win === win) || null;
+}
+
+function sessionByPad(id) {
+  if (!id) return null;
+  return liveNoteSessions().find((session) => session.padId === id) || null;
+}
+
+function primaryNoteWindow() {
+  const sessions = liveNoteSessions();
+  const focused = sessions.find((session) => session.win.isFocused());
+  if (focused) return focused.win;
+  const visible = [...sessions].reverse().find((session) => session.win.isVisible());
+  if (visible) return visible.win;
+  return sessions.length ? sessions[sessions.length - 1].win : null;
+}
+
 function getNoteBounds() {
   try {
     const display = screen.getPrimaryDisplay();
     const area = display ? display.workArea : { x: 0, y: 0, width: 1920, height: 1080 };
     return {
-      x: Math.round(area.x + (area.width - 480) / 2),
-      y: Math.round(area.y + area.height - 450 - 88),
-      width: 480,
-      height: 450,
+      x: Math.round(area.x + (area.width - NOTE_WIDTH) / 2),
+      y: Math.round(area.y + area.height - NOTE_HEIGHT - 88),
+      width: NOTE_WIDTH,
+      height: NOTE_HEIGHT,
     };
   } catch (_e) {
-    return { x: 100, y: 100, width: 480, height: 450 };
+    return { x: 100, y: 100, width: NOTE_WIDTH, height: NOTE_HEIGHT };
   }
 }
 
-function sendNotePad() {
-  if (!noteWindow || noteWindow.isDestroyed()) return;
+function boundsBeside(anchor) {
+  if (!anchor || anchor.isDestroyed()) return getNoteBounds();
+  const current = anchor.getBounds();
+  const display = screen.getDisplayNearestPoint({ x: current.x, y: current.y });
+  const area = display.workArea;
+  const gap = 16;
+  let x = current.x + current.width + gap;
+  let y = current.y;
+  if (x + NOTE_WIDTH > area.x + area.width) x = current.x - NOTE_WIDTH - gap;
+  if (x < area.x) x = area.x;
+  if (y + NOTE_HEIGHT > area.y + area.height) y = area.y + area.height - NOTE_HEIGHT;
+  if (y < area.y) y = area.y;
+  return { x: Math.round(x), y: Math.round(y), width: NOTE_WIDTH, height: NOTE_HEIGHT };
+}
+
+function padPayload(id) {
   let padData = { id: "", title: "Note", content: "" };
-  if (notePadId && store) {
-    const found = store.listPads().find((p) => p.id === notePadId);
+  if (id && store) {
+    const found = store.listPads().find((row) => row.id === id);
     if (found) padData = { id: found.id, title: found.title || "Note", content: found.content || "" };
   }
+  return padData;
+}
+
+function deliverNote(session, padData) {
+  if (!session || !session.win || session.win.isDestroyed()) return;
   const deliver = () => {
-    if (!noteWindow || noteWindow.isDestroyed()) return;
-    noteWindow.webContents.send("note-show", padData);
+    if (!session.win || session.win.isDestroyed()) return;
+    session.win.webContents.send("note-show", padData);
   };
-  if (noteWindow.webContents.isLoading()) noteWindow.webContents.once("did-finish-load", deliver);
+  if (session.win.webContents.isLoading()) session.win.webContents.once("did-finish-load", deliver);
   else deliver();
 }
 
-function ensureNoteWindow() {
-  if (noteWindow && !noteWindow.isDestroyed()) return noteWindow;
-  const bounds = getNoteBounds();
-  noteWindow = new BrowserWindow({
+function revealNote(win) {
+  if (!win || win.isDestroyed()) return;
+  const show = () => {
+    if (!win || win.isDestroyed()) return;
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.setAlwaysOnTop(true, "pop-up-menu");
+    win.moveTop();
+    win.focus();
+  };
+  if (win.webContents.isLoading()) win.webContents.once("did-finish-load", show);
+  else show();
+}
+
+function senderWindow(event) {
+  if (!event || !event.sender) return null;
+  try {
+    return BrowserWindow.fromWebContents(event.sender);
+  } catch (_error) {
+    return null;
+  }
+}
+
+function createNoteSession(bounds, padId) {
+  const win = new BrowserWindow({
     x: bounds.x,
     y: bounds.y,
     width: bounds.width,
@@ -323,37 +399,56 @@ function ensureNoteWindow() {
       sandbox: true,
     },
   });
-  noteWindow.webContents.setBackgroundThrottling(false);
-  noteWindow.on("closed", () => {
-    noteWindow = null;
+  const session = { win, padId: padId || "" };
+  noteSessions.push(session);
+  rememberNoteWindow(win);
+  win.webContents.setBackgroundThrottling(false);
+  win.on("focus", () => rememberNoteWindow(win));
+  win.on("closed", () => {
+    noteSessions = noteSessions.filter((item) => item.win !== win);
+    if (voiceNoteWindow === win) voiceNoteWindow = null;
+    if (noteWindow === win) rememberNoteWindow(null);
   });
-  noteWindow.loadFile(path.join(root, "renderer", "note.html"));
-  return noteWindow;
+  win.loadFile(path.join(root, "renderer", "note.html"));
+  return session;
 }
 
 function showNotePad(id) {
-  notePadId = id || "";
-  const win = ensureNoteWindow();
-  const bounds = getNoteBounds();
-  win.setBounds(bounds);
-  sendNotePad();
-  const reveal = () => {
-    if (!win || win.isDestroyed()) return;
-    if (win.isMinimized()) win.restore();
-    win.show();
-    win.setAlwaysOnTop(true, "pop-up-menu");
-    win.moveTop();
-    win.focus();
-  };
-  if (win.webContents.isLoading()) {
-    win.webContents.once("did-finish-load", reveal);
+  const wanted = id || "";
+  if (wanted) {
+    const existing = sessionByPad(wanted);
+    if (existing) {
+      existing.padId = wanted;
+      notePadId = wanted;
+      rememberNoteWindow(existing.win);
+      deliverNote(existing, padPayload(wanted));
+      revealNote(existing.win);
+      return existing.win;
+    }
   } else {
-    reveal();
+    const visible = primaryNoteWindow();
+    if (visible && visible.isVisible()) {
+      rememberNoteWindow(visible);
+      revealNote(visible);
+      return visible;
+    }
   }
+  const anchor = wanted ? primaryNoteWindow() : null;
+  const bounds = anchor ? boundsBeside(anchor) : getNoteBounds();
+  const session = createNoteSession(bounds, wanted);
+  notePadId = wanted;
+  deliverNote(session, padPayload(wanted));
+  revealNote(session.win);
+  return session.win;
 }
 
-function openFreshNote() {
-  showNotePad("");
+function openFreshNote(anchor) {
+  const base = anchor && !anchor.isDestroyed() ? anchor : primaryNoteWindow();
+  const bounds = base ? boundsBeside(base) : getNoteBounds();
+  const session = createNoteSession(bounds, "");
+  notePadId = "";
+  deliverNote(session, padPayload(""));
+  revealNote(session.win);
   return { id: "", isDraft: true, title: "Note", content: "" };
 }
 
@@ -682,8 +777,12 @@ function ensureNoteLlama() {
 }
 
 function sendImproveProgress(payload) {
-  for (const win of [mainWindow, noteWindow, noteDownloadWindow]) {
-    if (win && !win.isDestroyed()) win.webContents.send("note-improve-progress", payload);
+  const targets = [mainWindow, noteDownloadWindow, ...liveNoteSessions().map((session) => session.win)];
+  const seen = new Set();
+  for (const win of targets) {
+    if (!win || win.isDestroyed() || seen.has(win)) continue;
+    seen.add(win);
+    win.webContents.send("note-improve-progress", payload);
   }
 }
 
@@ -1263,7 +1362,6 @@ function createWindows() {
     placeBar(72, 18);
     applyFloatingBubbleState();
   });
-  ensureNoteWindow();
 }
 
 function delay(ms) {
@@ -1525,6 +1623,33 @@ const actions = {
     return true;
   },
   "note.open": () => openFreshNote(),
+  "notes.spawn": (_payload, event) => openFreshNote(senderWindow(event)),
+  "notes.openHere": (payload, event) => {
+    const id = payload && payload.id ? String(payload.id) : "";
+    const sender = senderWindow(event);
+    const other = sessionByPad(id);
+    if (other && other.win !== sender) {
+      rememberNoteWindow(other.win);
+      deliverNote(other, padPayload(id));
+      revealNote(other.win);
+      return { focused: true };
+    }
+    const session = sessionForWindow(sender);
+    if (!session) return { focused: false };
+    session.padId = id;
+    notePadId = id;
+    rememberNoteWindow(session.win);
+    deliverNote(session, padPayload(id));
+    return { focused: false };
+  },
+  "notes.bind": (payload, event) => {
+    const session = sessionForWindow(senderWindow(event));
+    if (session) {
+      session.padId = payload && payload.id ? String(payload.id) : "";
+      notePadId = session.padId;
+    }
+    return true;
+  },
   "desk.open": () => {
     showMain();
     return true;
@@ -1543,11 +1668,12 @@ const actions = {
     sendNoteVoice({ type: "done", error: payload && payload.error ? String(payload.error) : "" });
     return true;
   },
-  "note.close": () => {
-    if (dictating && dictateSource === "voicenote" && voiceNoteTarget === "note") endDictate();
-    if (noteWindow && !noteWindow.isDestroyed()) {
-      noteWindow.webContents.send("note-reset", {});
-      noteWindow.hide();
+  "note.close": (_payload, event) => {
+    const win = sessionForWindow(senderWindow(event)) ? sessionForWindow(senderWindow(event)).win : noteWindow;
+    if (win && voiceNoteWindow === win && dictating && dictateSource === "voicenote" && voiceNoteTarget === "note") endDictate();
+    if (win && !win.isDestroyed()) {
+      win.webContents.send("note-reset", {});
+      win.close();
     }
     return true;
   },
@@ -1891,11 +2017,11 @@ ipcMain.handle("audio-codec", (_event, payload) => {
   throw new Error("Unknown action.");
 });
 
-ipcMain.handle("dispatch", async (_event, action, payload) => {
+ipcMain.handle("dispatch", async (event, action, payload) => {
   const handler = actions[action];
   if (!handler) throw new Error("Unknown action.");
   try {
-    return await handler(payload || {});
+    return await handler(payload || {}, event);
   } catch (error) {
     store.addNotification({ title: "Error", body: error.message || "Unknown error" });
     if (!String(action).startsWith("speech.")) sendOverlay({ mode: "hidden" });

@@ -1195,8 +1195,8 @@ label.key input:focus, .onboard-input:focus {
   background: var(--sand-500);
   border: 1px solid var(--sand-600);
   border-radius: 999px;
-  padding: 3px 18px;
-  font-size: 12.5px;
+  padding: 6px 16px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 1.2;
   transition: all .15s ease;
@@ -1217,8 +1217,8 @@ label.key input:focus, .onboard-input:focus {
   color: #ffffff;
   border: 1px solid #000000;
   border-radius: 999px;
-  padding: 3px 18px;
-  font-size: 12.5px;
+  padding: 6px 16px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 1.2;
   box-shadow: none;

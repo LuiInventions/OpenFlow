@@ -41,6 +41,7 @@
       const safe = href.replace(/&quot;/g, "");
       return `<a href="${safe}" target="_blank" rel="noopener noreferrer">${label}</a>`;
     });
+    html = html.replace(/&lt;u&gt;([\s\S]+?)&lt;\/u&gt;/g, "<u>$1</u>");
     html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
     html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     html = html.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
@@ -73,6 +74,25 @@
         closeList();
         const level = heading[1].length;
         out.push(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`);
+        continue;
+      }
+      if (/^(-{3,}|\*{3,})$/.test(trimmed)) {
+        closeList();
+        out.push("<hr>");
+        continue;
+      }
+      const quote = trimmed.match(/^>\s?(.+)$/);
+      if (quote) {
+        closeList();
+        out.push(`<blockquote>${inlineMarkdown(quote[1])}</blockquote>`);
+        continue;
+      }
+      const image = trimmed.match(/^!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)$/);
+      if (image) {
+        closeList();
+        const alt = escapeHtml(image[1]);
+        const src = image[2].replace(/"/g, "");
+        out.push(`<p><img alt="${alt}" src="${src}"></p>`);
         continue;
       }
       const check = trimmed.match(/^[-*]\s+\[( |x|X)\]\s+(.+)$/);
@@ -112,9 +132,11 @@
   function paintMarkdown(textarea) {
     const view = markdownView(textarea);
     if (!view || !textarea) return;
-    const show = Boolean(String(textarea.value || "").trim()) && !editingNotes.has(textarea) && !textarea.classList.contains("is-shimmer");
+    const text = String(textarea.value || "");
+    const show = Boolean(text.trim()) && !textarea.classList.contains("is-shimmer");
     view.hidden = !show;
-    view.innerHTML = show ? renderMarkdown(textarea.value) : "";
+    view.innerHTML = show ? renderMarkdown(text) : "";
+    if (textarea.parentElement) textarea.parentElement.classList.toggle("is-empty", !text);
   }
 
   function attach(options) {
@@ -125,10 +147,9 @@
       return { destroy() {}, onExternalChange() {}, close() {} };
     }
     host.dataset.mounted = "1";
-    const REFRESH_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.1 8a5.1 5.1 0 1 1-1.35-3.45"></path><path d="M13.5 2.4V5.6H10.3"></path></svg>';
     const SEND_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 12.5V3.5"></path><path d="M4.5 7 8 3.5 11.5 7"></path></svg>';
     host.innerHTML = `<button type="button" class="sparkle-btn" data-sparkle-toggle aria-expanded="false" title="Improve" aria-label="Improve"><span class="sparkle-glyph">${ICON}</span><span class="sparkle-label">Improve</span></button>`;
-    const panelMarkup = `<div class="sparkle-panel" data-sparkle-panel aria-hidden="true"><div class="sparkle-chips-row"><div class="sparkle-chips" data-sparkle-chips></div><button type="button" class="sparkle-history" data-sparkle-history>History</button><button type="button" class="sparkle-refresh" data-sparkle-refresh aria-label="New suggestions" title="New suggestions">${REFRESH_ICON}</button></div><div class="sparkle-field"><input class="sparkle-text" data-sparkle-input placeholder="Follow up or ask a question" aria-label="Follow up or ask a question"><span class="sparkle-enter">Press Enter or</span><button type="button" class="sparkle-send" data-sparkle-send aria-label="Send" title="Send">${SEND_ICON}</button></div><p class="sparkle-hint" data-sparkle-limit hidden>At most 6 words.</p><div class="sparkle-privacy" data-sparkle-privacy hidden><p>This note is sent to OpenAI.</p><div class="sparkle-actions"><button type="button" class="sparkle-chip" data-sparkle-ack>Continue</button></div></div><div class="sparkle-preview" data-sparkle-preview hidden><p data-sparkle-preview-text></p><div class="sparkle-actions"><button type="button" class="sparkle-chip" data-sparkle-accept>Use it anyway</button><button type="button" class="sparkle-ghost" data-sparkle-reject>Discard</button></div></div></div>`;
+    const panelMarkup = `<div class="sparkle-panel" data-sparkle-panel aria-hidden="true"><div class="sparkle-chips-row"><div class="sparkle-chips" data-sparkle-chips></div><button type="button" class="sparkle-history" data-sparkle-history>History</button></div><div class="sparkle-field"><input class="sparkle-text" data-sparkle-input placeholder="Follow up or ask a question" aria-label="Follow up or ask a question"><span class="sparkle-enter">Press Enter or</span><button type="button" class="sparkle-send" data-sparkle-send aria-label="Send" title="Send">${SEND_ICON}</button></div><p class="sparkle-hint" data-sparkle-limit hidden>At most 6 words.</p><div class="sparkle-privacy" data-sparkle-privacy hidden><p>This note is sent to OpenAI.</p><div class="sparkle-actions"><button type="button" class="sparkle-chip" data-sparkle-ack>Continue</button></div></div><div class="sparkle-preview" data-sparkle-preview hidden><p data-sparkle-preview-text></p><div class="sparkle-actions"><button type="button" class="sparkle-chip" data-sparkle-accept>Use it anyway</button><button type="button" class="sparkle-ghost" data-sparkle-reject>Discard</button></div></div></div>`;
     const dock = root.querySelector("[data-sparkle-dock]");
     if (dock) {
       dock.innerHTML = `<div class="sparkle-dock-clip">${panelMarkup}</div>`;
@@ -291,21 +312,6 @@
       showChips(result && result.suggestions ? result.suggestions : FALLBACK, false);
     }
 
-    async function refreshSuggestionsUi() {
-      if (busy) return;
-      showChips(FALLBACK, true);
-      const note = options.getNote();
-      const result = await dispatch("notes.sparkle.suggest", {
-        id: note.id,
-        title: note.title,
-        content: note.content,
-        save: Boolean(note.id),
-        force: true,
-      });
-      if (closed) return;
-      showChips(result && result.suggestions ? result.suggestions : FALLBACK, false);
-    }
-
     function setOpen(open) {
       panelOpen = Boolean(open);
       button.setAttribute("aria-expanded", panelOpen ? "true" : "false");
@@ -321,6 +327,8 @@
       if (!panelOpen) {
         privacy.hidden = true;
         preview.hidden = true;
+      } else if (root) {
+        root.dispatchEvent(new CustomEvent("openflow-sparkle-open"));
       }
     }
 
@@ -466,7 +474,7 @@
     }
 
     function onClick(event) {
-      const target = event.target.closest("[data-sparkle-toggle], [data-sparkle-close], [data-sparkle-chip], [data-sparkle-send], [data-sparkle-ack], [data-sparkle-accept], [data-sparkle-reject], [data-sparkle-history], [data-sparkle-refresh], [data-sparkle-undo]");
+      const target = event.target.closest("[data-sparkle-toggle], [data-sparkle-close], [data-sparkle-chip], [data-sparkle-send], [data-sparkle-ack], [data-sparkle-accept], [data-sparkle-reject], [data-sparkle-history], [data-sparkle-undo]");
       if (!target) return;
       event.preventDefault();
       event.stopPropagation();
@@ -479,10 +487,6 @@
           loadCached(Boolean(settings().noteImproveAutoSuggestions !== false && available())).catch(() => {});
         } else if (busy) close();
         else setOpen(false);
-        return;
-      }
-      if (target.hasAttribute("data-sparkle-refresh")) {
-        refreshSuggestionsUi().catch(() => {});
         return;
       }
       if (target.hasAttribute("data-sparkle-close")) {
@@ -543,7 +547,6 @@
         return;
       }
       if (event.target === textarea && !applying) {
-        editingNotes.add(textarea);
         undoTyped = true;
         schedule();
         paintMarkdown(textarea);
@@ -576,14 +579,17 @@
       }
     }
 
-    markdown.addEventListener("click", () => {
-      editingNotes.add(textarea);
-      markdown.hidden = true;
-      textarea.focus();
+    markdown.addEventListener("copy", (event) => {
+      const source = String(textarea.value || "");
+      if (!event.clipboardData) return;
+      event.preventDefault();
+      event.clipboardData.setData("text/plain", source);
     });
     textarea.addEventListener("blur", () => {
-      editingNotes.delete(textarea);
       paintMarkdown(textarea);
+    });
+    textarea.addEventListener("scroll", () => {
+      markdown.scrollTop = textarea.scrollTop;
     });
     const surfaces = dock ? [host, dock] : [host];
     surfaces.forEach((node) => {
@@ -624,6 +630,7 @@
         if (!applying) schedule();
       },
       paintAvailability,
+      hide() { hidePanel(); },
       close,
       closeHistory,
     };

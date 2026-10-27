@@ -96,16 +96,17 @@
       height: 100%;
       padding: 12px 14px;
       outline: none;
-      font-size: 11px;
-      line-height: 1.45;
-      background: #fcfcfb;
-      color: var(--vast-950);
+      font-size: 13px;
+      line-height: 1.5;
+      background: transparent;
+      color: transparent;
+      caret-color: var(--vast-950);
     }
     textarea::placeholder { color: var(--vast-600); }
     #save, #copy {
       border-radius: 999px;
-      padding: 3px 18px;
-      font-size: 12.5px;
+      padding: 6px 16px;
+      font-size: 13px;
       font-weight: 600;
       line-height: 1.2;
       transition: all .15s ease;
@@ -200,14 +201,7 @@
 </head>
 <body>
   <div class="card note-shell">
-    <div class="note-rail">
-      <div class="sparkle-host"></div>
-      <button id="voice" class="note-voice-btn idle" type="button" title="Click to listen again" aria-label="Voice note">
-        <svg class="icon-active" width="22" height="22" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.1" stroke="#000000" stroke-width="1.8"></circle><circle cx="8" cy="8" r="2.7" fill="#000000"></circle></svg>
-        <svg class="icon-idle" width="20" height="20" viewBox="0 0 18 18" fill="none" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6.25" y="1.75" width="5.5" height="9" rx="2.75"></rect><path d="M3.75 8.25a5.25 5.25 0 0 0 10.5 0M9 13.5V16"></path></svg>
-        <div class="icon-busy note-spin"></div>
-      </button>
-    </div>
+    <div class="note-rail"></div>
     <div class="note-top">
       <input id="title" value="Note" placeholder="Note title" aria-label="Title">
       <button id="close" type="button" aria-label="Close" title="Close">
@@ -219,40 +213,31 @@
     </div>
     <div class="note-main">
       <div class="note-write">
-        <textarea id="body" placeholder="Write or dictate a note..."></textarea>
+        <textarea id="body" aria-label="Note"></textarea>
       </div>
       <div class="note-foot">
-        <button id="copy" type="button">Copy</button>
+        <button id="copy" type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M4 16V5a1 1 0 0 1 1-1h11"></path></svg><span>Copy</span></button>
         <button id="save" type="button">Save</button>
       </div>
       <div class="sparkle-dock" data-sparkle-dock></div>
     </div>
     <div class="note-lip"></div>
   </div>
+  <script src="note-chrome.js"></script>
   <script src="sparkle-client.js"></script>
   <script>
     let currentNote = { id: "", title: "Note", content: "" };
-    const voiceButton = document.querySelector("#voice");
     const bodyField = document.querySelector("#body");
-    const idlePlaceholder = bodyField.placeholder;
+    const noteShell = document.querySelector(".card");
     let voiceState = "idle";
     let voiceWaiters = [];
     let voiceBaseText = "";
     let voiceTranscript = "";
+    let noteChrome = null;
 
     function setVoiceState(next) {
       voiceState = next;
-      voiceButton.className = "note-voice-btn " + (next === "off" ? "idle" : next);
-      voiceButton.disabled = next === "busy";
-      if (next === "active") {
-        voiceButton.title = "Click to stop listening";
-        bodyField.placeholder = "Listening...";
-      } else if (next === "busy") {
-        voiceButton.title = "Transcribing...";
-      } else {
-        voiceButton.title = "Click to listen again";
-        bodyField.placeholder = idlePlaceholder;
-      }
+      if (noteChrome) noteChrome.setListening(next === "active");
       if (next === "idle" || next === "off") {
         const waiters = voiceWaiters;
         voiceWaiters = [];
@@ -309,15 +294,6 @@
       return done;
     }
 
-    voiceButton.addEventListener("click", () => {
-      if (!window.openflow) return;
-      if (voiceState === "active") {
-        window.openflow.dispatch("voicenote.stop").catch(() => {});
-      } else if (voiceState === "idle" || voiceState === "off") {
-        window.openflow.dispatch("voicenote.start").catch(() => {});
-      }
-    });
-
     async function onShow(data) {
       if (data && typeof data === "object" && ("title" in data || "content" in data)) {
         currentNote = {
@@ -340,6 +316,10 @@
       titleInput.value = currentNote.title;
       bodyField.value = currentNote.content;
       if (window.OpenflowSparkle) window.OpenflowSparkle.sync(bodyField, { reveal: true });
+      if (currentNote.id && window.openflow) {
+        window.openflow.dispatch("notes.bind", { id: currentNote.id }).catch(() => {});
+      }
+      if (noteChrome) noteChrome.refresh();
       noteTitleBefore = currentNote.title;
       bodyField.focus();
     }
@@ -404,10 +384,11 @@
       if (!window.openflow) return;
       const btn = document.querySelector("#copy");
       await window.openflow.dispatch("clipboard.copy", { text: document.querySelector("#body").value });
-      btn.textContent = "Copied";
+      const label = btn.querySelector("span");
+      if (label) label.textContent = "Copied";
       btn.classList.add("copied");
       setTimeout(() => {
-        btn.textContent = "Copy";
+        if (label) label.textContent = "Copy";
         btn.classList.remove("copied");
       }, 1000);
     });
@@ -428,6 +409,7 @@
       });
       currentNote.id = saved.id;
       currentNote.title = nextTitle;
+      await window.openflow.dispatch("notes.bind", { id: saved.id });
       await new Promise((resolve) => setTimeout(resolve, 500));
       button.disabled = false;
       button.textContent = "Save";
@@ -454,7 +436,10 @@
           currentNote.content = text;
           if (window.OpenflowSparkle) window.OpenflowSparkle.sync(bodyField, { reveal: true });
         },
-        setNoteId: (id) => { currentNote.id = id; },
+        setNoteId: (id) => {
+          currentNote.id = id;
+          if (id && window.openflow) window.openflow.dispatch("notes.bind", { id }).catch(() => {});
+        },
         getSettings: () => noteSettings,
         async onSettings(partial) {
           const saved = await window.openflow.dispatch("settings.save", partial);
@@ -465,9 +450,31 @@
       });
     }
 
+    if (window.OpenflowNoteChrome) {
+      noteChrome = window.OpenflowNoteChrome.bind({
+        shell: noteShell,
+        textarea: bodyField,
+        shortcut: "",
+        getPads: async () => {
+          if (!window.openflow) return [];
+          const pads = await window.openflow.dispatch("pads.list");
+          return pads || [];
+        },
+        getCurrentId: () => currentNote.id || "",
+        getSparkle: () => sparkle,
+        onNew: () => {
+          if (window.openflow) window.openflow.dispatch("notes.spawn").catch(() => {});
+        },
+        onOpen: (id) => {
+          if (window.openflow) window.openflow.dispatch("notes.openHere", { id }).catch(() => {});
+        },
+      });
+    }
+
     if (window.openflow) {
       window.openflow.on("note-show", async (data) => {
         noteSettings = await window.openflow.dispatch("settings.get");
+        if (noteChrome) noteChrome.setShortcut(noteSettings.dictationShortcut);
         await onShow(data);
         mountSparkle();
         if (sparkle) sparkle.onExternalChange();
@@ -485,6 +492,7 @@
       });
       window.openflow.dispatch("settings.get").then((settings) => {
         noteSettings = settings || {};
+        if (noteChrome) noteChrome.setShortcut(noteSettings.dictationShortcut);
         mountSparkle();
       }).catch(() => {});
       onShow({});

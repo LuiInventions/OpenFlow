@@ -36,7 +36,6 @@ let loadGeneration = 0;
 let draggedElemId = null;
 let draggedShelfId = null;
 
-const EDITOR_PLACEHOLDER = "Write or dictate a note...";
 const NOTE_IMPROVE_ONBOARDING_RELEASE = "1.5.6";
 // Live voice dictation into the note editor (streamed from the main process as "note-voice").
 const editorVoice = { state: "idle", waiters: [], base: "", transcript: "", key: "" };
@@ -620,6 +619,15 @@ function paintCommandEditor() {
   }
   editor.dataset.id = editorKey;
   editor.classList.remove("note-shell");
+  editor.classList.remove("is-expanded");
+  if (editor._chrome) {
+    editor._chrome.destroy();
+    editor._chrome = null;
+  }
+  if (editor._sparkle) {
+    editor._sparkle.destroy();
+    editor._sparkle = null;
+  }
   editor.hidden = false;
   const closeIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"></line><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"></line></svg>';
   const runAsAdmin = Boolean(cmd.runAsAdmin);
@@ -726,6 +734,7 @@ function paintEditor() {
   if (editor.dataset.id === editorKey && editor.querySelector("#editor-title")) {
     editor.classList.add("note-shell");
     editor.hidden = false;
+    if (editor._chrome) editor._chrome.setShortcut((state.desk && state.desk.settings && state.desk.settings.dictationShortcut) || "");
     if (editor._sparkle && editor._sparkle.paintAvailability) editor._sparkle.paintAvailability();
     return;
   }
@@ -733,15 +742,23 @@ function paintEditor() {
     editor._sparkle.destroy();
     editor._sparkle = null;
   }
+  if (editor._chrome) {
+    editor._chrome.destroy();
+    editor._chrome = null;
+  }
   editor.dataset.id = editorKey;
   editor.classList.add("note-shell");
   editor.hidden = false;
   const titleVal = state.editor.title || "Note";
   const closeIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"></line><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"></line></svg>';
-  const voiceIcon = '<svg class="icon-active" width="22" height="22" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.1" stroke="#000000" stroke-width="1.8"></circle><circle cx="8" cy="8" r="2.7" fill="#000000"></circle></svg><svg class="icon-idle" width="20" height="20" viewBox="0 0 18 18" fill="none" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6.25" y="1.75" width="5.5" height="9" rx="2.75"></rect><path d="M3.75 8.25a5.25 5.25 0 0 0 10.5 0M9 13.5V16"></path></svg><span class="icon-busy note-spin"></span>';
-  editor.innerHTML = `<div class="note-rail"><div class="sparkle-host"></div><button type="button" id="editor-voice" class="note-voice-btn idle" title="Click to dictate" aria-label="Dictate into note" aria-pressed="false">${voiceIcon}</button></div><div class="note-top"><input id="editor-title" value="${esc(titleVal)}" placeholder="Note title" aria-label="Title"><button type="button" class="editor-close-btn" id="editor-back" title="Close" aria-label="Close">${closeIcon}</button></div><div class="note-main"><div class="note-write"><textarea id="editor-body" placeholder="Write or dictate a note..." aria-label="Note">${esc(state.editor.content || "")}</textarea></div><div class="note-foot"><button type="button" id="editor-copy">Copy</button><button type="button" id="editor-save">Save</button></div><div class="sparkle-dock" data-sparkle-dock></div></div><div class="note-lip"></div>`;
-  paintEditorVoice();
+  const shortcut = (state.desk && state.desk.settings && state.desk.settings.dictationShortcut) || "";
+  const rail = window.OpenflowNoteChrome ? window.OpenflowNoteChrome.railHtml() : `<div class="sparkle-host"></div>`;
+  const hint = window.OpenflowNoteChrome ? window.OpenflowNoteChrome.hintHtml(shortcut) : "";
+  const formatDock = window.OpenflowNoteChrome ? window.OpenflowNoteChrome.formatDockHtml() : "";
+  editor.innerHTML = `<div class="note-rail">${rail}</div><div class="note-top"><input id="editor-title" value="${esc(titleVal)}" placeholder="Note title" aria-label="Title"><button type="button" class="editor-close-btn" id="editor-back" title="Close" aria-label="Close">${closeIcon}</button></div><div class="note-main"><div class="note-write"><textarea id="editor-body" aria-label="Note">${esc(state.editor.content || "")}</textarea>${hint}</div><div class="note-foot"><button type="button" id="editor-copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M4 16V5a1 1 0 0 1 1-1h11"></path></svg><span>Copy</span></button><button type="button" id="editor-save">Save</button></div><div class="sparkle-dock" data-sparkle-dock></div>${formatDock}</div><div class="note-lip"></div>`;
   mountEditorSparkle(editor);
+  wireEditorChrome(editor);
+  paintEditorVoice();
   const body = editor.querySelector("#editor-body");
   if (body) body.focus();
 }
@@ -804,17 +821,37 @@ function currentEditorKey() {
   return state.editor ? (state.editor.id || "__draft__") : "";
 }
 
+function wireEditorChrome(editor) {
+  if (!window.OpenflowNoteChrome || !editor) return;
+  if (editor._chrome) editor._chrome.destroy();
+  editor._chrome = window.OpenflowNoteChrome.bind({
+    shell: editor,
+    textarea: editor.querySelector("#editor-body"),
+    shortcut: (state.desk && state.desk.settings && state.desk.settings.dictationShortcut) || "",
+    getPads: async () => {
+      if (!window.openflow) return (state.desk && state.desk.pads) || [];
+      const pads = await window.openflow.dispatch("pads.list");
+      if (state.desk && Array.isArray(pads)) state.desk.pads = pads;
+      return pads || [];
+    },
+    getCurrentId: () => (state.editor && state.editor.id) || "",
+    getSparkle: () => editor._sparkle,
+    onNew: () => {
+      if (window.openflow) window.openflow.dispatch("notes.spawn").catch(() => {});
+    },
+    onOpen: (id) => {
+      const pad = ((state.desk && state.desk.pads) || []).find((item) => item.id === id);
+      if (!pad) return;
+      state.editor = { id: pad.id, isDraft: false, title: pad.title || "Note", content: pad.content || "" };
+      editor.dataset.id = "";
+      render();
+    },
+  });
+}
+
 function paintEditorVoice() {
-  const next = editorVoice.state;
-  const button = document.querySelector("#editor-voice");
-  if (button) {
-    button.className = `note-voice-btn ${next}`;
-    button.disabled = next === "busy";
-    button.title = next === "active" ? "Click to stop listening" : (next === "busy" ? "Transcribing..." : "Click to dictate");
-    button.setAttribute("aria-pressed", next === "active" ? "true" : "false");
-  }
-  const body = document.querySelector("#editor-body");
-  if (body) body.placeholder = next === "active" ? "Listening..." : EDITOR_PLACEHOLDER;
+  const editor = document.querySelector("#editor");
+  if (editor && editor._chrome) editor._chrome.setListening(editorVoice.state === "active");
 }
 
 function setEditorVoiceState(next) {
@@ -1688,10 +1725,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (copyBtn && window.openflow) {
       const body = document.querySelector("#editor-body");
       await window.openflow.dispatch("clipboard.copy", { text: body ? body.value : "" });
-      copyBtn.textContent = "Copied";
+      const copyLabel = copyBtn.querySelector("span");
+      if (copyLabel) copyLabel.textContent = "Copied";
       copyBtn.classList.add("copied");
       setTimeout(() => {
-        copyBtn.textContent = "Copy";
+        if (copyLabel) copyLabel.textContent = "Copy";
         copyBtn.classList.remove("copied");
       }, 1000);
       return;
