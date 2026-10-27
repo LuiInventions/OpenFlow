@@ -132,6 +132,11 @@ test("sparkle flow replaces the note, keeps a snapshot, and undo restores it", a
   assert.equal(versions[0].model, "gpt-6-luna");
   assert.equal(versions[1].label, "Before improvement");
   assert.equal(versions[1].content, ORIGINAL);
+  const shown = sparkle.versions(first.id).filter((row) => row.kind === "improve");
+  assert.equal(shown.length, 1);
+  assert.equal(shown[0].content, first.content);
+  assert.equal(Object.hasOwn(shown[0], "model"), false);
+  assert.match(shown[0].diff.tokens.map((token) => token.text).join(""), /Klarer formuliert/);
   const undone = sparkle.undo({ id: first.id, snapshotId: first.snapshotId });
   assert.equal(undone.content, ORIGINAL);
   assert.equal(store.getPad(first.id).content, ORIGINAL);

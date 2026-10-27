@@ -336,9 +336,8 @@ function createNoteSparkle(deps) {
         label: row.label,
         kind: row.kind,
         instruction: row.instruction,
-        provider: row.provider,
-        model: row.model,
         created_at: row.created_at,
+        content: row.content,
         diff,
       };
     });

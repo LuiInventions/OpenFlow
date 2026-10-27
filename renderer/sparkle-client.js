@@ -125,7 +125,7 @@
       return { destroy() {}, onExternalChange() {}, close() {} };
     }
     host.dataset.mounted = "1";
-    host.innerHTML = `<button type="button" class="sparkle-btn" data-sparkle-toggle aria-expanded="false" title="Improve"><span class="sparkle-glyph">${ICON}</span><span>Improve</span></button><div class="sparkle-panel" data-sparkle-panel hidden><div class="sparkle-head"><span class="sparkle-title">${ICON}<span>Improve Note</span></span><button type="button" class="sparkle-x" data-sparkle-close aria-label="Close" title="Close"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"></line><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"></line></svg></button></div><div class="sparkle-chips" data-sparkle-chips></div><div class="sparkle-field"><input class="sparkle-text" data-sparkle-input placeholder="How should this note be improved?" aria-label="How should this note be improved?"><button type="button" class="sparkle-send" data-sparkle-send aria-label="Send" title="Send"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"></path></svg></button></div><div class="sparkle-meta"><span data-sparkle-count>0/6 words</span><button type="button" class="sparkle-link" data-sparkle-history>History</button></div><p class="sparkle-hint" data-sparkle-limit hidden>At most 6 words.</p><div class="sparkle-privacy" data-sparkle-privacy hidden><p>This note is sent to OpenAI.</p><div class="sparkle-actions"><button type="button" class="sparkle-chip" data-sparkle-ack>Continue</button></div></div><div class="sparkle-preview" data-sparkle-preview hidden><p data-sparkle-preview-text></p><div class="sparkle-actions"><button type="button" class="sparkle-chip" data-sparkle-accept>Use it anyway</button><button type="button" class="sparkle-ghost" data-sparkle-reject>Discard</button></div></div><div class="sparkle-versions" data-sparkle-versions hidden></div></div>`;
+    host.innerHTML = `<button type="button" class="sparkle-btn" data-sparkle-toggle aria-expanded="false" title="Improve"><span class="sparkle-glyph">${ICON}</span><span>Improve</span></button><div class="sparkle-panel" data-sparkle-panel hidden><div class="sparkle-head"><span class="sparkle-title">${ICON}<span>Improve Note</span></span><button type="button" class="sparkle-x" data-sparkle-close aria-label="Close" title="Close"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"></line><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"></line></svg></button></div><div class="sparkle-chips" data-sparkle-chips></div><div class="sparkle-field"><input class="sparkle-text" data-sparkle-input placeholder="How should this note be improved?" aria-label="How should this note be improved?"><button type="button" class="sparkle-send" data-sparkle-send aria-label="Send" title="Send"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"></path></svg></button></div><div class="sparkle-meta"><span data-sparkle-count>0/6 words</span><button type="button" class="sparkle-link" data-sparkle-history>History</button></div><p class="sparkle-hint" data-sparkle-limit hidden>At most 6 words.</p><div class="sparkle-privacy" data-sparkle-privacy hidden><p>This note is sent to OpenAI.</p><div class="sparkle-actions"><button type="button" class="sparkle-chip" data-sparkle-ack>Continue</button></div></div><div class="sparkle-preview" data-sparkle-preview hidden><p data-sparkle-preview-text></p><div class="sparkle-actions"><button type="button" class="sparkle-chip" data-sparkle-accept>Use it anyway</button><button type="button" class="sparkle-ghost" data-sparkle-reject>Discard</button></div></div></div>`;
     const panel = host.querySelector("[data-sparkle-panel]");
     const chips = host.querySelector("[data-sparkle-chips]");
     const input = host.querySelector("[data-sparkle-input]");
@@ -135,7 +135,6 @@
     const privacy = host.querySelector("[data-sparkle-privacy]");
     const preview = host.querySelector("[data-sparkle-preview]");
     const previewText = host.querySelector("[data-sparkle-preview-text]");
-    const versions = host.querySelector("[data-sparkle-versions]");
     const button = host.querySelector("[data-sparkle-toggle]");
     let toast = root.querySelector(":scope > .sparkle-toast");
     if (!toast) {
@@ -152,6 +151,8 @@
     let undoTyped = false;
     let previewPayload = null;
     let closed = false;
+    let historyOpen = false;
+    let historyPending = false;
     const markdown = document.createElement("div");
     markdown.className = "note-md";
     markdown.hidden = true;
@@ -306,7 +307,6 @@
       button.setAttribute("aria-expanded", "false");
       privacy.hidden = true;
       preview.hidden = true;
-      versions.hidden = true;
     }
 
     async function run(instruction) {
@@ -407,6 +407,13 @@
       }
     }
 
+    function closeHistory() {
+      if (!historyOpen && !historyPending) return;
+      historyOpen = false;
+      historyPending = false;
+      dispatch("notes.sparkle.history.close").catch(() => {});
+    }
+
     function close() {
       panel.hidden = true;
       button.setAttribute("aria-expanded", "false");
@@ -465,24 +472,22 @@
       if (target.hasAttribute("data-sparkle-history")) {
         const note = options.getNote();
         if (!note.id) return;
-        dispatch("notes.sparkle.versions", { id: note.id }).then((rows) => {
-          const list = Array.isArray(rows) ? rows.filter((row) => row.kind === "improve") : [];
-          if (!list.length) {
-            versions.hidden = false;
-            versions.innerHTML = "<p>No improvements yet.</p>";
-            return;
-          }
-          versions.hidden = false;
-          versions.innerHTML = list.slice(0, 5).map((row) => {
-            const diff = (row.diff && row.diff.tokens ? row.diff.tokens : []).map((token) => {
-              if (token.type === "add") return `<ins>${esc(token.text)}</ins>`;
-              if (token.type === "del") return `<del>${esc(token.text)}</del>`;
-              return esc(token.text);
-            }).join("");
-            const where = row.model || "OpenAI";
-            return `<div class="sparkle-version"><strong>${esc(row.label)}</strong><p>${esc(where)}</p><div class="sparkle-diff">${diff}</div></div>`;
-          }).join("");
-        }).catch(() => {});
+        const rect = root.getBoundingClientRect();
+        historyPending = true;
+        dispatch("notes.sparkle.history.open", {
+          id: note.id,
+          anchor: {
+            x: Math.round(window.screenX + rect.left),
+            y: Math.round(window.screenY + rect.top),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+          },
+        }).then((result) => {
+          historyPending = false;
+          historyOpen = Boolean(result && result.open);
+        }).catch(() => {
+          historyPending = false;
+        });
       }
     }
 
@@ -549,6 +554,7 @@
       destroy() {
         closed = true;
         clearTimeout(timer);
+        closeHistory();
         const note = options.getNote();
         if (busy && note.id) dispatch("notes.sparkle.cancel", { id: note.id }).catch(() => {});
         host.removeEventListener("click", onClick);
@@ -568,6 +574,7 @@
       },
       paintAvailability,
       close,
+      closeHistory,
     };
   }
 

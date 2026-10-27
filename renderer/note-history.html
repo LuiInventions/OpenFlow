@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>History</title>
+  <style>
+    :root {
+      --sand-50: #fcfcfb;
+      --sand-500: #f5f4f0;
+      --sand-600: #eeebe3;
+      --sand-700: #c5c0b3;
+      --vast-600: #71716e;
+      --vast-950: #1a1a1a;
+      --pure-white: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: transparent;
+      color: var(--vast-950);
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    body { padding: 14px; }
+    button { font: inherit; color: inherit; cursor: pointer; }
+    .card {
+      height: 100%;
+      background: var(--sand-50);
+      border: 1px solid var(--sand-600);
+      border-radius: 20px;
+      box-shadow: 0 20px 50px rgba(26, 26, 26, 0.18), 0 4px 12px rgba(26, 26, 26, 0.08);
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      overflow: hidden;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 52px;
+      padding: 12px 14px 12px 16px;
+      border-bottom: 1px solid var(--sand-600);
+      background: var(--sand-500);
+      -webkit-app-region: drag;
+    }
+    h1 {
+      margin: 0;
+      font-family: Georgia, "Palatino Linotype", serif;
+      font-size: 22px;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+    }
+    #close {
+      width: 26px;
+      height: 26px;
+      border-radius: 7px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--vast-600);
+      background: transparent;
+      padding: 0;
+      border: 0;
+      -webkit-app-region: no-drag;
+    }
+    #close:hover {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.12);
+    }
+    #close svg { display: block; width: 13px; height: 13px; }
+    .list {
+      min-height: 0;
+      overflow: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 12px;
+    }
+    .list::-webkit-scrollbar { width: 0; height: 0; display: none; }
+    .empty {
+      margin: auto;
+      padding: 28px 16px;
+      text-align: center;
+      color: var(--vast-600);
+      font-size: 13.5px;
+      line-height: 1.45;
+    }
+    .change {
+      background: var(--pure-white);
+      border: 1px solid var(--sand-600);
+      border-radius: 14px;
+      padding: 12px 14px 12px;
+      display: grid;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+    .change-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .change-head strong {
+      font-size: 13.5px;
+      font-weight: 600;
+      line-height: 1.35;
+      letter-spacing: -0.01em;
+    }
+    .change-head time {
+      flex: 0 0 auto;
+      color: var(--vast-600);
+      font-size: 11.5px;
+      font-weight: 500;
+    }
+    .diff {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: var(--vast-950);
+    }
+    .diff ins {
+      background: #4ade80;
+      color: #052e16;
+      text-decoration: none;
+      border-radius: 4px;
+      padding: 0 3px;
+      -webkit-box-decoration-break: clone;
+      box-decoration-break: clone;
+    }
+    .diff del {
+      background: #ffe4e6;
+      color: #9f1239;
+      text-decoration: line-through;
+      text-decoration-thickness: 1.5px;
+      border-radius: 4px;
+      padding: 0 3px;
+      -webkit-box-decoration-break: clone;
+      box-decoration-break: clone;
+    }
+    .change-foot {
+      display: flex;
+      justify-content: flex-end;
+    }
+    .copy {
+      border: 1px solid var(--sand-600);
+      background: var(--sand-500);
+      color: var(--vast-950);
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 12.5px;
+      font-weight: 600;
+      line-height: 1.2;
+      -webkit-app-region: no-drag;
+    }
+    .copy:hover { background: var(--sand-600); }
+    .copy.copied {
+      background: var(--sand-600);
+      border-color: var(--sand-700);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <header>
+      <h1>History</h1>
+      <button id="close" type="button" aria-label="Close" title="Close">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="3" y1="3" x2="13" y2="13"></line>
+          <line x1="13" y1="3" x2="3" y2="13"></line>
+        </svg>
+      </button>
+    </header>
+    <div class="list" id="list"></div>
+  </div>
+  <script>
+    let rows = [];
+
+    function esc(value) {
+      return String(value == null ? "" : value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function when(iso) {
+      const date = new Date(iso);
+      if (Number.isNaN(date.getTime())) return "";
+      return date.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    }
+
+    function diffHtml(row) {
+      const tokens = row.diff && Array.isArray(row.diff.tokens) ? row.diff.tokens : [];
+      if (!tokens.length) return esc(row.content || "");
+      return tokens.map((token) => {
+        const text = esc(token.text);
+        if (token.type === "add") return `<ins>${text}</ins>`;
+        if (token.type === "del") return `<del>${text}</del>`;
+        return text;
+      }).join("");
+    }
+
+    function render(next) {
+      rows = Array.isArray(next) ? next : [];
+      const list = document.querySelector("#list");
+      if (!rows.length) {
+        list.innerHTML = '<p class="empty">No improvements yet.</p>';
+        return;
+      }
+      list.innerHTML = rows.map((row) => {
+        const stamp = when(row.created_at);
+        const time = stamp ? `<time datetime="${esc(row.created_at)}">${esc(stamp)}</time>` : "";
+        return `<article class="change"><div class="change-head"><strong>${esc(row.label || "Improvement")}</strong>${time}</div><p class="diff">${diffHtml(row)}</p><div class="change-foot"><button type="button" class="copy" data-copy="${esc(row.id)}">Copy</button></div></article>`;
+      }).join("");
+    }
+
+    document.querySelector("#close").addEventListener("click", () => {
+      if (window.openflow) window.openflow.dispatch("notes.sparkle.history.close");
+    });
+
+    document.querySelector("#list").addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-copy]");
+      if (!button || !window.openflow) return;
+      const row = rows.find((item) => item.id === button.getAttribute("data-copy"));
+      if (!row) return;
+      await window.openflow.dispatch("clipboard.copy", { text: row.content || "" });
+      button.textContent = "Copied";
+      button.classList.add("copied");
+      setTimeout(() => {
+        button.textContent = "Copy";
+        button.classList.remove("copied");
+      }, 1000);
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && window.openflow) {
+        window.openflow.dispatch("notes.sparkle.history.close");
+      }
+    });
+
+    if (window.openflow) {
+      window.openflow.on("note-history", (payload) => render(payload && payload.rows));
+    }
+  </script>
+</body>
+</html>

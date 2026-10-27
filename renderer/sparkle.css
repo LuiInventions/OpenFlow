@@ -276,8 +276,7 @@
 }
 
 .sparkle-privacy,
-.sparkle-preview,
-.sparkle-versions {
+.sparkle-preview {
   display: grid;
   gap: var(--space-2);
   padding: var(--space-2);
@@ -286,8 +285,7 @@
 }
 
 .sparkle-preview p,
-.sparkle-privacy p,
-.sparkle-versions p {
+.sparkle-privacy p {
   margin: 0;
 }
 
@@ -295,28 +293,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-}
-
-.sparkle-diff {
-  font-size: 12.5px;
-  line-height: 1.5;
-  max-height: 140px;
-  overflow: auto;
-}
-
-.sparkle-diff del {
-  background: var(--sand-600);
-  text-decoration: line-through;
-}
-
-.sparkle-diff ins {
-  background: var(--green-50);
-  color: var(--fg, var(--vast-950));
-  text-decoration: none;
-}
-
-.sparkle-version + .sparkle-version {
-  margin-top: var(--space-2);
 }
 
 .sparkle-toast {

@@ -8,3 +8,15 @@
   RMDir /r "$LOCALAPPDATA\openflow-updater"
   Sleep 800
 !macroend
+
+!macro customFinishPage
+  Function StartApp
+    ${StdUtils.ExecShellAsUser} $0 "$launchLink" "open" "--installed"
+  FunctionEnd
+
+  !define MUI_FINISHPAGE_RUN
+  !define MUI_FINISHPAGE_RUN_CHECKED
+  !define MUI_FINISHPAGE_RUN_TEXT "Open OpenFlow"
+  !define MUI_FINISHPAGE_RUN_FUNCTION "StartApp"
+  !insertmacro MUI_PAGE_FINISH
+!macroend

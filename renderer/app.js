@@ -37,7 +37,7 @@ let draggedElemId = null;
 let draggedShelfId = null;
 
 const EDITOR_PLACEHOLDER = "Write or dictate a note...";
-const NOTE_IMPROVE_ONBOARDING_RELEASE = "1.5.5";
+const NOTE_IMPROVE_ONBOARDING_RELEASE = "1.5.6";
 // Live voice dictation into the note editor (streamed from the main process as "note-voice").
 const editorVoice = { state: "idle", waiters: [], base: "", transcript: "", key: "" };
 
@@ -712,6 +712,7 @@ function paintIconPicker() {
 function paintEditor() {
   const editor = document.querySelector("#editor");
   if (!state.editor || state.view !== "notes") {
+    if (editor._sparkle && editor._sparkle.closeHistory) editor._sparkle.closeHistory();
     if (state.view !== "commands" || !state.commandEditor) {
       editor.hidden = true;
       editor.dataset.id = "";

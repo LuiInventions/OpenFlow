@@ -485,7 +485,10 @@
         if (sparkle) sparkle.onExternalChange();
       });
       window.openflow.on("note-reset", () => {
-        if (sparkle) sparkle.close();
+        if (sparkle) {
+          sparkle.close();
+          if (sparkle.closeHistory) sparkle.closeHistory();
+        }
         onReset();
       });
       window.openflow.on("note-voice", (message) => {

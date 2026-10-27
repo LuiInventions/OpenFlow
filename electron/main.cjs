@@ -25,6 +25,8 @@ let mainWindow = null;
 let overlayWindow = null;
 let noteWindow = null;
 let noteDownloadWindow = null;
+let noteHistoryWindow = null;
+let noteHistoryNoteId = "";
 let selectLocalWhenReady = false;
 let tray = null;
 let chord = null;
@@ -353,6 +355,111 @@ function showNotePad(id) {
 function openFreshNote() {
   showNotePad("");
   return { id: "", isDraft: true, title: "Note", content: "" };
+}
+
+function historyRows(id) {
+  return ensureNoteSparkle().versions(id)
+    .filter((row) => row.kind === "improve")
+    .map((row) => ({
+      id: row.id,
+      label: row.label,
+      created_at: row.created_at,
+      content: row.content,
+      diff: row.diff,
+    }));
+}
+
+function placeNoteHistory(anchor) {
+  const pad = 14;
+  const gap = 12;
+  const point = { x: Math.round(Number(anchor.x) || 0), y: Math.round(Number(anchor.y) || 0) };
+  const display = screen.getDisplayNearestPoint(point);
+  const area = display.workArea;
+  const cardWidth = Math.max(300, Math.min(380, Math.round((Number(anchor.width) || 480) * 0.72)));
+  const cardHeight = Math.max(320, Math.round(Number(anchor.height) || 520));
+  let width = cardWidth + pad * 2;
+  let height = cardHeight + pad * 2;
+  let x = Math.round(point.x + (Number(anchor.width) || 0) + gap - pad);
+  let y = Math.round(point.y - pad);
+  if (height > area.height) {
+    height = area.height;
+    y = area.y;
+  }
+  if (y < area.y) y = area.y;
+  if (y + height > area.y + area.height) y = area.y + area.height - height;
+  if (x + width > area.x + area.width - 8) x = area.x + area.width - width - 8;
+  if (x < area.x + 8) x = area.x + 8;
+  return { x, y, width, height };
+}
+
+function deliverHistory(id) {
+  if (!noteHistoryWindow || noteHistoryWindow.isDestroyed()) return;
+  const payload = { id, rows: historyRows(id) };
+  const send = () => {
+    if (!noteHistoryWindow || noteHistoryWindow.isDestroyed()) return;
+    noteHistoryWindow.webContents.send("note-history", payload);
+  };
+  if (noteHistoryWindow.webContents.isLoading()) noteHistoryWindow.webContents.once("did-finish-load", send);
+  else send();
+}
+
+function closeNoteHistory() {
+  noteHistoryNoteId = "";
+  if (noteHistoryWindow && !noteHistoryWindow.isDestroyed()) noteHistoryWindow.close();
+  noteHistoryWindow = null;
+  return { open: false };
+}
+
+function openNoteHistory(payload) {
+  const id = String((payload && payload.id) || "");
+  if (!id) return { open: false };
+  if (noteHistoryWindow && !noteHistoryWindow.isDestroyed() && noteHistoryWindow.isVisible() && noteHistoryNoteId === id) {
+    return closeNoteHistory();
+  }
+  const bounds = placeNoteHistory((payload && payload.anchor) || {});
+  if (!noteHistoryWindow || noteHistoryWindow.isDestroyed()) {
+    noteHistoryWindow = new BrowserWindow({
+      ...bounds,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: "#00000000",
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      hasShadow: false,
+      thickFrame: false,
+      title: "History",
+      webPreferences: {
+        preload: path.join(__dirname, "preload.cjs"),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+    noteHistoryWindow.on("closed", () => {
+      noteHistoryWindow = null;
+      noteHistoryNoteId = "";
+    });
+    noteHistoryWindow.loadFile(path.join(root, "renderer", "note-history.html"));
+  } else {
+    noteHistoryWindow.setBounds(bounds);
+  }
+  noteHistoryNoteId = id;
+  deliverHistory(id);
+  const win = noteHistoryWindow;
+  const reveal = () => {
+    if (!win || win.isDestroyed()) return;
+    win.show();
+    win.moveTop();
+    win.focus();
+  };
+  if (win.webContents.isLoading()) win.webContents.once("did-finish-load", reveal);
+  else reveal();
+  return { open: true };
 }
 
 async function runModelInstallerIfNeeded() {
@@ -1065,8 +1172,10 @@ function createWindows() {
   mainWindow.on("close", (event) => {
     if (quitting || process.env.OPENFLOW_SMOKE === "1") return;
     event.preventDefault();
+    closeNoteHistory();
     mainWindow.hide();
   });
+  mainWindow.on("hide", () => closeNoteHistory());
   mainWindow.on("show", () => {
     if (process.env.OPENFLOW_SMOKE === "1") return;
     if (needsOnboarding()) {
@@ -1372,8 +1481,8 @@ const actions = {
     if (payload && Object.prototype.hasOwnProperty.call(payload, "noteImproveOnboardingDone")) {
       patch.noteImproveOnboardingDone = Boolean(payload.noteImproveOnboardingDone);
     }
-    if (payload && payload.noteImproveOnboardingRelease === "1.5.5") {
-      patch.noteImproveOnboardingRelease = "1.5.5";
+    if (payload && payload.noteImproveOnboardingRelease === "1.5.6") {
+      patch.noteImproveOnboardingRelease = "1.5.6";
     }
     if (payload && Object.prototype.hasOwnProperty.call(payload, "noteImprovePrivacyAck")) {
       patch.noteImprovePrivacyAck = Boolean(payload.noteImprovePrivacyAck);
@@ -1442,6 +1551,8 @@ const actions = {
     }
     return true;
   },
+  "notes.sparkle.history.open": (payload) => openNoteHistory(payload || {}),
+  "notes.sparkle.history.close": () => closeNoteHistory(),
   "desk.pending": () => {
     const value = pendingRefresh;
     pendingRefresh = null;
