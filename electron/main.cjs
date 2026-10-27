@@ -397,6 +397,7 @@ function createNoteSession(bounds, padId) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      spellcheck: false,
     },
   });
   const session = { win, padId: padId || "" };

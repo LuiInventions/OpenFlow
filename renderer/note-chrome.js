@@ -26,7 +26,7 @@
 
   function hintHtml(shortcut) {
     const keys = keysFor(shortcut);
-    return `<div class="note-dictate-hint" aria-hidden="true"><span class="note-kbd"><kbd>${keys[0]}</kbd><span class="note-kbd-plus">+</span><kbd>${keys[1]}</kbd></span><span class="note-dictate-word">to dictate</span><span class="note-listening">Listening...</span></div>`;
+    return `<div class="note-dictate-hint" aria-hidden="true"><span class="note-kbd-row"><kbd class="note-kbd">${keys[0]}</kbd><span class="note-kbd-plus">+</span><kbd class="note-kbd">${keys[1]}</kbd></span><span class="note-dictate-phrase">Dictate or write something</span><span class="note-listening">Listening...</span></div>`;
   }
 
   function railHtml() {
@@ -34,7 +34,7 @@
   }
 
   function formatDockHtml() {
-    return `<div class="format-dock" data-format-dock inert><div class="format-clip"><div class="format-bar" role="toolbar" aria-label="Formatting"><button type="button" data-format="bold" aria-label="Bold"><span class="fmt-b">B</span></button><button type="button" data-format="italic" aria-label="Italic"><span class="fmt-i">I</span></button><button type="button" data-format="underline" aria-label="Underline"><span class="fmt-u">U</span></button><button type="button" data-format="code" aria-label="Code"><span class="fmt-code">&lt;/&gt;</span></button><span class="fmt-sep" aria-hidden="true"></span><button type="button" data-format="bullet" aria-label="Bulleted list">${icons.bullet}</button><button type="button" data-format="number" aria-label="Numbered list">${icons.number}</button><button type="button" data-format="check" aria-label="Checklist">${icons.check}</button><span class="fmt-sep" aria-hidden="true"></span><button type="button" data-format="quote" aria-label="Quote">${icons.quote}</button><span class="fmt-sep" aria-hidden="true"></span><button type="button" data-format="link" aria-label="Link">${icons.link}</button><button type="button" data-format="image" aria-label="Image">${icons.image}</button></div></div></div>`;
+    return `<div class="format-dock" data-format-dock inert><div class="format-bar" role="toolbar" aria-label="Formatting"><button type="button" data-format="bold" aria-label="Bold"><span class="fmt-b">B</span></button><button type="button" data-format="italic" aria-label="Italic"><span class="fmt-i">I</span></button><button type="button" data-format="underline" aria-label="Underline"><span class="fmt-u">U</span></button></div></div>`;
   }
 
   function toggleWrap(text, before, after) {
@@ -150,6 +150,15 @@
       main.insertAdjacentHTML("beforeend", formatDockHtml());
     }
     const textarea = options.textarea || shell.querySelector("textarea");
+    if (textarea) {
+      textarea.spellcheck = false;
+      textarea.setAttribute("spellcheck", "false");
+      textarea.setAttribute("autocorrect", "off");
+      textarea.setAttribute("autocapitalize", "off");
+      textarea.addEventListener("focus", () => {
+        if (textarea.parentElement) textarea.parentElement.classList.add("is-armed");
+      });
+    }
     let formatOpen = false;
 
     function setFormat(open) {

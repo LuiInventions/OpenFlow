@@ -166,7 +166,9 @@
     const preview = scope.querySelector("[data-sparkle-preview]");
     const previewText = scope.querySelector("[data-sparkle-preview-text]");
     const button = host.querySelector("[data-sparkle-toggle]");
-    const toastParent = textarea.parentElement && textarea.parentElement.classList.contains("note-write") ? textarea.parentElement : root;
+    const toastParent = root && root.classList && root.classList.contains("note-shell")
+      ? root
+      : (textarea.parentElement && textarea.parentElement.classList.contains("note-write") ? textarea.parentElement : root);
     let toast = toastParent.querySelector(":scope > .sparkle-toast, :scope > .sparkle-undo");
     if (!toast) {
       toast = document.createElement("div");
