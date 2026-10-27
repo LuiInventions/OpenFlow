@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <title>Note</title>
+  <link rel="stylesheet" href="sparkle.css">
   <style>
     :root {
       --sand-50: #fcfcfb;
@@ -12,6 +13,16 @@
       --vast-950: #1a1a1a;
       --green-600: #059669;
       --green-50: #ecfdf5;
+      --dawn-100: #fcf7ff;
+      --dawn-600: #d2ace9;
+      --pure-white: #ffffff;
+      --surface: var(--pure-white);
+      --line: var(--sand-600);
+      --fg: var(--vast-950);
+      --muted: var(--vast-600);
+      --soft: var(--sand-500);
+      --shadow-sm: 0 1px 3px 0 rgb(26 26 26 / 0.08), 0 1px 2px -1px rgb(26 26 26 / 0.06);
+      --shadow-md: 0 4px 12px -2px rgb(26 26 26 / 0.08), 0 2px 4px -2px rgb(26 26 26 / 0.05);
     }
     * { box-sizing: border-box; }
     html, body {
@@ -225,10 +236,12 @@
         <svg class="icon-idle" width="20" height="20" viewBox="0 0 18 18" fill="none" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6.25" y="1.75" width="5.5" height="9" rx="2.75"></rect><path d="M3.75 8.25a5.25 5.25 0 0 0 10.5 0M9 13.5V16"></path></svg>
         <div class="icon-busy note-spin"></div>
       </button>
+      <div class="sparkle-host"></div>
       <button id="copy" type="button">Copy</button>
       <button id="save" type="button">Save</button>
     </footer>
   </div>
+  <script src="sparkle-client.js"></script>
   <script>
     let currentNote = { id: "", title: "Note", content: "" };
     const voiceButton = document.querySelector("#voice");
@@ -273,6 +286,7 @@
           const prefix = voiceBaseText ? (/\s$/.test(voiceBaseText) ? voiceBaseText : voiceBaseText + " ") : "";
           bodyField.value = prefix + voiceTranscript;
           bodyField.scrollTop = bodyField.scrollHeight;
+          if (window.OpenflowSparkle) window.OpenflowSparkle.sync(bodyField);
           if (document.activeElement === bodyField) {
             bodyField.selectionStart = bodyField.selectionEnd = bodyField.value.length;
           }
@@ -285,6 +299,7 @@
           const prefix = voiceBaseText ? (/\s$/.test(voiceBaseText) ? voiceBaseText : voiceBaseText + " ") : "";
           bodyField.value = prefix + clean;
           bodyField.scrollTop = bodyField.scrollHeight;
+          if (window.OpenflowSparkle) window.OpenflowSparkle.sync(bodyField);
         }
       }
       if (message.type === "stopped" && voiceState === "active") {
@@ -336,6 +351,7 @@
       }
       titleInput.value = currentNote.title;
       bodyField.value = currentNote.content;
+      if (window.OpenflowSparkle) window.OpenflowSparkle.sync(bodyField, { reveal: true });
       noteTitleBefore = currentNote.title;
       bodyField.focus();
     }
@@ -431,10 +447,55 @@
       await window.openflow.dispatch("note.close");
     });
 
+    let noteSettings = {};
+    let sparkle = null;
+
+    function mountSparkle() {
+      if (!window.OpenflowSparkle || sparkle) return;
+      sparkle = window.OpenflowSparkle.attach({
+        host: document.querySelector(".sparkle-host"),
+        root: document.querySelector(".card"),
+        textarea: bodyField,
+        getNote: () => ({
+          id: currentNote.id || "",
+          title: titleInput.value || currentNote.title || "Note",
+          content: bodyField.value,
+        }),
+        setContent: (text) => {
+          bodyField.value = text;
+          currentNote.content = text;
+          if (window.OpenflowSparkle) window.OpenflowSparkle.sync(bodyField, { reveal: true });
+        },
+        setNoteId: (id) => { currentNote.id = id; },
+        getSettings: () => noteSettings,
+        async onSettings(partial) {
+          const saved = await window.openflow.dispatch("settings.save", partial);
+          if (saved && saved.settings) noteSettings = saved.settings;
+          else Object.assign(noteSettings, partial);
+        },
+        dispatch: (action, payload) => window.openflow.dispatch(action, payload),
+      });
+    }
+
     if (window.openflow) {
-      window.openflow.on("note-show", onShow);
-      window.openflow.on("note-reset", onReset);
-      window.openflow.on("note-voice", onVoice);
+      window.openflow.on("note-show", async (data) => {
+        noteSettings = await window.openflow.dispatch("settings.get");
+        await onShow(data);
+        mountSparkle();
+        if (sparkle) sparkle.onExternalChange();
+      });
+      window.openflow.on("note-reset", () => {
+        if (sparkle) sparkle.close();
+        onReset();
+      });
+      window.openflow.on("note-voice", (message) => {
+        onVoice(message);
+        if (message && message.type === "done" && sparkle) sparkle.onExternalChange();
+      });
+      window.openflow.dispatch("settings.get").then((settings) => {
+        noteSettings = settings || {};
+        mountSparkle();
+      }).catch(() => {});
       onShow({});
     }
   </script>

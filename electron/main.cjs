@@ -12,6 +12,10 @@ const flow = require("../src/flow");
 const audio = require("../src/audio");
 const parakeet = require("../src/parakeet");
 const commands = require("../src/commands");
+const { createNoteSparkle } = require("../src/note-sparkle");
+const { createModelLibrary } = require("../src/note-models");
+const { createLlamaHost, llamaRuntimeAvailable } = require("../src/llama-host");
+const { normalizeOpenAIModel, normalizeLocalModel } = require("../src/note-improve");
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
@@ -20,9 +24,14 @@ app.commandLine.appendSwitch("ignore-certificate-errors");
 let mainWindow = null;
 let overlayWindow = null;
 let noteWindow = null;
+let noteDownloadWindow = null;
+let selectLocalWhenReady = false;
 let tray = null;
 let chord = null;
 let store = null;
+let noteSparkle = null;
+let noteModels = null;
+let noteLlama = null;
 let quitting = false;
 let overlayTimer = null;
 let dictating = false;
@@ -555,7 +564,153 @@ function ensureCommandsScripts() {
   } catch {}
 }
 
+function ensureNoteModels() {
+  if (!noteModels) noteModels = createModelLibrary({ dir: path.join(app.getPath("userData"), "note-models") });
+  return noteModels;
+}
+
+function ensureNoteLlama() {
+  if (!noteLlama) noteLlama = createLlamaHost({ workerPath: path.join(root, "src", "llama-worker.js") });
+  return noteLlama;
+}
+
+function sendImproveProgress(payload) {
+  for (const win of [mainWindow, noteWindow, noteDownloadWindow]) {
+    if (win && !win.isDestroyed()) win.webContents.send("note-improve-progress", payload);
+  }
+}
+
+function refreshDesk() {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("desk-refresh", {});
+}
+
+function selectDownloadedLocalModel(id) {
+  if (!store || !selectLocalWhenReady) return;
+  store.updateSettings({
+    noteImproveProvider: "local",
+    noteImproveLocalModel: normalizeLocalModel(id),
+  });
+  selectLocalWhenReady = false;
+  refreshDesk();
+}
+
+function showNoteDownloadWindow(id) {
+  const deliver = () => {
+    const row = ensureNoteModels().status(id);
+    if (!row) return;
+    if (row.progress) sendImproveProgress(row.progress);
+    else if (row.downloaded) {
+      sendImproveProgress({
+        id,
+        percent: 100,
+        received: row.size,
+        total: row.size || row.approxBytes,
+        bps: 0,
+        done: true,
+      });
+    }
+  };
+  if (noteDownloadWindow && !noteDownloadWindow.isDestroyed()) {
+    if (noteDownloadWindow.isMinimized()) noteDownloadWindow.restore();
+    noteDownloadWindow.show();
+    noteDownloadWindow.focus();
+    deliver();
+    return;
+  }
+  noteDownloadWindow = new BrowserWindow({
+    width: 480,
+    height: 280,
+    resizable: false,
+    minimizable: true,
+    maximizable: false,
+    closable: true,
+    center: true,
+    show: false,
+    title: "Downloading local note model",
+    icon: path.join(root, "build", "icon.png"),
+    backgroundColor: "#faf9f7",
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  noteDownloadWindow.on("closed", () => {
+    noteDownloadWindow = null;
+  });
+  noteDownloadWindow.webContents.setBackgroundThrottling(false);
+  noteDownloadWindow.webContents.once("did-finish-load", deliver);
+  noteDownloadWindow.loadFile(path.join(root, "renderer", "note-model-download.html"), { query: { id } });
+  noteDownloadWindow.once("ready-to-show", () => {
+    if (!noteDownloadWindow || noteDownloadWindow.isDestroyed()) return;
+    noteDownloadWindow.show();
+    noteDownloadWindow.focus();
+  });
+}
+
+function beginNoteModelDownload(id, selectWhenReady) {
+  const modelId = normalizeLocalModel(id || "qwen2.5-3b-instruct-q4");
+  selectLocalWhenReady = Boolean(selectWhenReady);
+  const row = ensureNoteModels().status(modelId);
+  showNoteDownloadWindow(modelId);
+  if (row && row.downloaded) {
+    selectDownloadedLocalModel(modelId);
+    sendImproveProgress({
+      id: modelId,
+      percent: 100,
+      received: row.size,
+      total: row.size || row.approxBytes,
+      bps: 0,
+      done: true,
+    });
+    return ensureNoteModels().statusList();
+  }
+  if (row && row.progress && !row.progress.done && !row.progress.error) {
+    sendImproveProgress(row.progress);
+    return ensureNoteModels().statusList();
+  }
+  ensureNoteModels().download(modelId, {
+    onProgress: (progress) => sendImproveProgress(progress),
+  }).then((saved) => {
+    if (!saved || !saved.downloaded) return;
+    selectDownloadedLocalModel(modelId);
+    sendImproveProgress({
+      id: modelId,
+      percent: 100,
+      received: saved.size || saved.received,
+      total: saved.size || saved.approxBytes,
+      bps: 0,
+      done: true,
+    });
+  }).catch((error) => {
+    selectLocalWhenReady = false;
+    const aborted = error && error.name === "AbortError";
+    sendImproveProgress({
+      id: modelId,
+      error: aborted ? "Download cancelled." : "Download failed.",
+    });
+  });
+  return ensureNoteModels().statusList();
+}
+
+function ensureNoteSparkle() {
+  if (!noteSparkle) {
+    noteSparkle = createNoteSparkle({
+      store,
+      readKey,
+      fetchImpl: fetch,
+      modelLibrary: ensureNoteModels(),
+      llamaRuntimeAvailable,
+      completeLocal: (payload) => ensureNoteLlama().complete(payload),
+    });
+  }
+  return noteSparkle;
+}
+
 function publicSettings() {
+  try { ensureNoteModels(); } catch (_error) { /* userData is ready with the app */ }
   const settings = store.getSettings();
   const preset = providers.defaultsFor(settings.provider);
   const sttEngine = settings.sttEngine === "openai" ? "openai" : "parakeet";
@@ -579,6 +734,10 @@ function publicSettings() {
     voiceNoteButton: settings.voiceNoteButton !== false,
     onboardingDone: Boolean(settings.onboardingDone),
     hasKey: Boolean(readKey()),
+    noteModels: noteModels ? noteModels.statusList() : [],
+    noteDisk: noteModels ? noteModels.disk() : { freeBytes: null },
+    llamaRuntime: llamaRuntimeAvailable(),
+    llamaState: noteLlama ? noteLlama.getStatus() : "idle",
     parakeet: parakeet.getStatus(app.getPath("userData")),
     effective: {
       sttModel: settings.sttModel || preset.sttModel,
@@ -1194,6 +1353,31 @@ const actions = {
     if (payload && Object.prototype.hasOwnProperty.call(payload, "onboardingDone")) {
       patch.onboardingDone = Boolean(payload.onboardingDone);
     }
+    if (payload && Object.prototype.hasOwnProperty.call(payload, "noteImproveEnabled")) {
+      patch.noteImproveEnabled = Boolean(payload.noteImproveEnabled) && Boolean(readKey());
+    }
+    if (payload && (payload.noteImproveProvider === "openai" || payload.noteImproveProvider === "local")) {
+      patch.noteImproveProvider = "openai";
+      selectLocalWhenReady = false;
+    }
+    if (payload && Object.prototype.hasOwnProperty.call(payload, "noteImproveModel")) {
+      patch.noteImproveModel = normalizeOpenAIModel(payload.noteImproveModel);
+    }
+    if (payload && Object.prototype.hasOwnProperty.call(payload, "noteImproveLocalModel")) {
+      patch.noteImproveLocalModel = normalizeLocalModel(payload.noteImproveLocalModel);
+    }
+    if (payload && Object.prototype.hasOwnProperty.call(payload, "noteImproveAutoSuggestions")) {
+      patch.noteImproveAutoSuggestions = Boolean(payload.noteImproveAutoSuggestions);
+    }
+    if (payload && Object.prototype.hasOwnProperty.call(payload, "noteImproveOnboardingDone")) {
+      patch.noteImproveOnboardingDone = Boolean(payload.noteImproveOnboardingDone);
+    }
+    if (payload && payload.noteImproveOnboardingRelease === "1.5.5") {
+      patch.noteImproveOnboardingRelease = "1.5.5";
+    }
+    if (payload && Object.prototype.hasOwnProperty.call(payload, "noteImprovePrivacyAck")) {
+      patch.noteImprovePrivacyAck = Boolean(payload.noteImprovePrivacyAck);
+    }
     store.updateSettings(patch);
     if (patch.dictationShortcut) syncChordShortcut(patch.dictationShortcut);
     syncSttEngine();
@@ -1342,6 +1526,54 @@ const actions = {
   "dictionary.delete": (payload) => store.deleteDictionary(payload.phrase),
   "history.update": (payload) => store.updateHistory(payload.id, payload.patch || {}),
   "history.delete": (payload) => store.deleteHistory(payload.id),
+  "notes.sparkle.improve": (payload) => ensureNoteSparkle().improve(payload || {}),
+  "notes.sparkle.apply": (payload) => ensureNoteSparkle().applyPreview(payload || {}),
+  "notes.sparkle.undo": (payload) => ensureNoteSparkle().undo(payload || {}),
+  "notes.sparkle.cancel": (payload) => ensureNoteSparkle().cancel(payload && payload.id),
+  "notes.sparkle.suggest": (payload) => ensureNoteSparkle().suggest(payload || {}),
+  "notes.sparkle.cached": (payload) => ensureNoteSparkle().cached(payload || {}),
+  "notes.sparkle.versions": (payload) => ensureNoteSparkle().versions(payload && payload.id),
+  "notes.model.download": (payload) => beginNoteModelDownload(payload && payload.id, Boolean(payload && payload.selectWhenReady)),
+  "notes.model.openDownload": (payload) => beginNoteModelDownload(payload && payload.id, payload ? payload.selectWhenReady !== false : true),
+  "notes.model.minimizeDownload": () => {
+    if (noteDownloadWindow && !noteDownloadWindow.isDestroyed()) noteDownloadWindow.minimize();
+    return { ok: true };
+  },
+  "notes.model.closeDownload": () => {
+    if (noteDownloadWindow && !noteDownloadWindow.isDestroyed()) noteDownloadWindow.close();
+    return { ok: true };
+  },
+  "notes.model.cancel": (payload) => {
+    selectLocalWhenReady = false;
+    return ensureNoteModels().cancel(payload && payload.id);
+  },
+  "notes.model.delete": async (payload) => {
+    const id = payload && payload.id;
+    if (noteLlama) await noteLlama.unload();
+    const removed = ensureNoteModels().remove(id);
+    const settings = store.getSettings();
+    if (settings.noteImproveProvider === "local" && normalizeLocalModel(settings.noteImproveLocalModel) === normalizeLocalModel(id)) {
+      selectLocalWhenReady = false;
+      store.updateSettings({ noteImproveProvider: "openai" });
+    }
+    return removed;
+  },
+  "notes.model.testKey": async () => {
+    const apiKey = readKey();
+    if (!apiKey) return { ok: false, message: "No API key is saved." };
+    const url = "https://api.openai.com/v1/models";
+    try {
+      providers.assertAllowedUrl(url);
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!response.ok) return { ok: false, message: "Key test failed." };
+      return { ok: true, message: "Key is valid." };
+    } catch (_error) {
+      return { ok: false, message: "Key test failed." };
+    }
+  },
   "notes.save": (payload) => store.saveNote(payload),
   "notes.versions": (payload) => store.listNoteVersions(payload.id),
   "notes.delete": (payload) => store.deleteNote(payload.id),

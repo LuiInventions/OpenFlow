@@ -33,6 +33,14 @@ function blank() {
       tone: "clear",
       styleInstructions: "",
       tourIndex: 0,
+      noteImproveEnabled: true,
+      noteImproveOnboardingRelease: "",
+      noteImproveProvider: "openai",
+      noteImproveModel: "gpt-6-luna",
+      noteImproveLocalModel: "qwen2.5-3b-instruct-q4",
+      noteImproveAutoSuggestions: true,
+      noteImproveOnboardingDone: false,
+      noteImprovePrivacyAck: false,
     },
     dictionary: [],
     history: [],
@@ -51,6 +59,7 @@ function blank() {
     notifications: [],
     scratchpad: "",
     pads: [],
+    padVersions: [],
     commands: [],
   };
 }
@@ -82,6 +91,14 @@ function createStore(filePath) {
   function queryMatch(value, query) {
     if (!query) return true;
     return String(value || "").toLowerCase().includes(String(query).toLowerCase());
+  }
+
+  function publicPad(row) {
+    return {
+      ...row,
+      suggestions: Array.isArray(row.suggestions) ? row.suggestions.slice() : [],
+      suggestion_hash: row.suggestion_hash || "",
+    };
   }
 
   return {
@@ -414,21 +431,59 @@ function createStore(filePath) {
       save();
     },
     listPads() {
-      return data.pads.map((row) => ({ ...row }));
+      return data.pads.map((row) => publicPad(row));
+    },
+    getPad(padId) {
+      const row = data.pads.find((item) => item.id === padId);
+      return row ? publicPad(row) : null;
     },
     savePad(input) {
       let row = input.id ? data.pads.find((item) => item.id === input.id) : null;
       if (!row) {
-        row = { id: id(), title: "Note", content: "" };
+        row = { id: id(), title: "Note", content: "", suggestions: [], suggestion_hash: "" };
         data.pads.push(row);
       }
       if (input.title != null) row.title = String(input.title || "Note").trim() || "Note";
       if (input.content != null) row.content = String(input.content);
       save();
-      return { ...row };
+      return publicPad(row);
+    },
+    setPadSuggestions(padId, hash, suggestions) {
+      const row = data.pads.find((item) => item.id === padId);
+      if (!row) return null;
+      row.suggestion_hash = String(hash || "");
+      row.suggestions = Array.isArray(suggestions) ? suggestions.slice(0, 3) : [];
+      save();
+      return publicPad(row);
+    },
+    addPadVersion(padId, input) {
+      const row = data.pads.find((item) => item.id === padId);
+      if (!row) throw new Error("Note missing.");
+      const version = {
+        id: id(),
+        pad_id: padId,
+        content: String(input.content == null ? "" : input.content),
+        label: String(input.label || ""),
+        kind: input.kind || "snapshot",
+        instruction: String(input.instruction || ""),
+        provider: String(input.provider || ""),
+        model: String(input.model || ""),
+        created_at: now(),
+        seq: data.padVersions.length,
+      };
+      data.padVersions.push(version);
+      save();
+      return { ...version };
+    },
+    listPadVersions(padId) {
+      return data.padVersions
+        .filter((row) => row.pad_id === padId)
+        .sort((a, b) => (b.seq - a.seq) || b.created_at.localeCompare(a.created_at))
+        .map((row) => ({ ...row }));
     },
     deletePad(padId) {
       data.pads = data.pads.filter((row) => row.id !== padId);
+      data.padVersions = data.padVersions.filter((row) => row.pad_id !== padId);
       save();
     },
     listCommands(query) {

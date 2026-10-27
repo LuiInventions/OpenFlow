@@ -67,6 +67,8 @@ test("parsers read transcript text and chat content", () => {
   assert.equal(providers.parseTranscription({ text: "  eins  " }), "eins");
   assert.equal(providers.parseTranscription({ text: "   " }), "");
   assert.equal(providers.parseChatText({ choices: [{ message: { content: "two" } }] }), "two");
+  assert.equal(providers.parseChatText({ choices: [{ message: { content: [{ type: "text", text: "drei" }] } }] }), "drei");
+  assert.equal(providers.parseChatText({ choices: [{ message: { content: [{ type: "reasoning", text: "geheim" }, { type: "output_text", text: "vier" }] } }] }), "vier");
   assert.throws(() => providers.parseTranscription({}), /transcript text/);
   assert.equal(providers.detectedLanguage({ languages: [{ code: "ja" }, { code: "en" }] }), "ja");
 });

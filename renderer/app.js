@@ -19,6 +19,7 @@ const state = {
   confirmDeleteId: null,
   confirmDeleteCommandId: null,
   confirmSttEngine: null,
+  confirmNoteProvider: null,
   askKey: false,
   onboardingStep: null,
   draftBubbleElements: null,
@@ -26,12 +27,17 @@ const state = {
   draftVoiceNote: null,
   sttInfoParakeet: false,
   sttInfoOpenai: false,
+  noteInfoLocal: false,
+  noteInfoOpenai: false,
+  noteKeyTest: "",
+  noteModelProgress: null,
 };
 let loadGeneration = 0;
 let draggedElemId = null;
 let draggedShelfId = null;
 
 const EDITOR_PLACEHOLDER = "Write or dictate a note...";
+const NOTE_IMPROVE_ONBOARDING_RELEASE = "1.5.5";
 // Live voice dictation into the note editor (streamed from the main process as "note-voice").
 const editorVoice = { state: "idle", waiters: [], base: "", transcript: "", key: "" };
 
@@ -231,6 +237,8 @@ async function load(pending) {
   }
   if ((pending && pending.onboarding) || !settings.onboardingDone) {
     if (!state.onboardingStep) state.onboardingStep = "choose";
+  } else if (settings.noteImproveOnboardingRelease !== NOTE_IMPROVE_ONBOARDING_RELEASE) {
+    if (state.onboardingStep !== "note-improve-key") state.onboardingStep = "note-improve";
   } else {
     state.onboardingStep = null;
   }
@@ -471,7 +479,7 @@ function openaiCardHtml(sttEngine) {
   return `<div role="radio" tabindex="0" class="engine-option${isPinned ? " is-pinned" : ""}" data-stt-select="openai" aria-checked="${isChecked ? "true" : "false"}"><div class="engine-normal-view"><div class="engine-head"><strong>gpt-transcribe</strong><button type="button" class="engine-info-btn" data-stt-info="openai" title="Model details" aria-label="Model details">${sttInfoIcon(false)}</button></div><p>Uses OpenAI gpt-transcribe with your personal API key.</p></div><div class="engine-info-view"><div class="engine-info-head"><div class="engine-info-meta"><strong class="engine-info-title">gpt-transcribe</strong><span class="engine-info-tagline">Automatic AI error correction</span></div><button type="button" class="engine-info-btn active" data-stt-info="openai" title="Close details" aria-label="Close details">${sttInfoIcon(true)}</button></div><div class="engine-metrics"><div class="engine-metric-row"><div class="engine-metric-labels"><span>Accuracy</span><strong>93%</strong></div><div class="engine-bar-track"><div class="engine-bar-fill" style="width: 93%;"></div></div></div><div class="engine-metric-row"><div class="engine-metric-labels"><span>Speed (API)</span><strong>34×</strong></div><div class="engine-bar-track"><div class="engine-bar-fill" style="width: 80%;"></div></div></div></div></div></div>`;
 }
 
-  const sttCard = `<div class="settings-card">${ask}<div class="section-label">Speech-to-Text Engine</div><div class="engine-grid" role="radiogroup" aria-label="Speech-to-Text Engine">${parakeetCardHtml(sttEngine)}${openaiCardHtml(sttEngine)}</div><label class="key">OpenAI API Key ${sttEngine === "parakeet" ? "(Optional)" : ""}<div class="key-row"><input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="${esc(hint)}"><button type="button" id="save-key" class="btn-primary">Save Key</button></div></label></div>`;
+  const sttCard = `<div class="settings-card">${ask}<div class="section-label">Speech-to-Text Engine</div><div class="engine-grid" role="radiogroup" aria-label="Speech-to-Text Engine">${parakeetCardHtml(sttEngine)}${openaiCardHtml(sttEngine)}</div>${noteImproveToggle(settings)}<label class="key">OpenAI API Key ${sttEngine === "parakeet" ? "(Optional)" : ""}<div class="key-row"><input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="${esc(hint)}"><button type="button" id="save-key" class="btn-primary">Save Key</button></div></label></div>`;
 
   // Floating Bubble Appearance
   const bubbleStyle = state.draftFloatingBubble || settings.floatingBubble || "active";
@@ -520,6 +528,78 @@ function openaiCardHtml(sttEngine) {
   const manageCard = `<div class="settings-card manage-elements-card"><div class="section-label">Manage Elements</div><div class="bubble-preview-wrap"><div class="bubble-preview-pill" id="bubble-preview-pill">${previewItemsHtml}</div></div>${removedShelfHtml}<div class="bubble-manage-actions"><button type="button" class="btn-secondary" id="bubble-reset">Reset to Default</button><button type="button" class="btn-primary" id="bubble-save">Save Changes</button></div></div>`;
 
   return `${sttCard}${dictationCard}${bubbleCard}${manageCard}`;
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes);
+  if (!Number.isFinite(value) || value < 0) return "";
+  if (value < 1024 * 1024) return `${Math.max(1, Math.round(value / 1024))} KB`;
+  if (value < 1024 * 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+function noteModelLine(model) {
+  const progress = state.noteModelProgress;
+  if (progress && progress.id === model.id && progress.error) return progress.error;
+  if (progress && progress.id === model.id && !progress.done && progress.percent != null) {
+    const received = formatBytes(progress.received);
+    const speed = progress.bps ? `${(progress.bps / (1024 * 1024)).toFixed(1)} MB/s` : "";
+    return `Downloading ${progress.percent}%${received ? ` · ${received}` : ""}${speed ? ` · ${speed}` : ""}`;
+  }
+  if (model.downloaded) return "Ready on this PC. The note stays on this device.";
+  return "Download required before this model can be selected.";
+}
+
+async function openLocalDownload(id) {
+  const current = state.noteModelProgress;
+  state.noteModelProgress = current && current.id === id && !current.done && !current.error
+    ? current
+    : { id, percent: 0, received: 0, bps: 0 };
+  await window.openflow.dispatch("notes.model.openDownload", { id, selectWhenReady: true });
+  render();
+}
+
+function noteInfoIcon(active) {
+  if (active) {
+    return `<svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="3" x2="13" y2="13"></line><line x1="13" y1="3" x2="3" y2="13"></line></svg>`;
+  }
+  return `<svg width="9" height="9" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="3.5" r="1.5"/><rect x="6.5" y="7" width="3" height="6" rx="1"/></svg>`;
+}
+
+function noteModelChoice(settings) {
+  const localId = settings.noteImproveLocalModel || "qwen2.5-3b-instruct-q4";
+  const openaiId = settings.noteImproveModel || "gpt-6-luna";
+  const localRow = (settings.noteModels || []).find((model) => model.id === localId) || {
+    id: localId,
+    downloaded: false,
+    approxBytes: localId === "llama-3.2-3b-instruct-q4" ? 2000000000 : 2100000000,
+  };
+  const llama = localId === "llama-3.2-3b-instruct-q4";
+  return {
+    localId,
+    openaiId,
+    localRow,
+    localTitle: llama ? "Llama 3.2 3B Instruct" : "Qwen2.5 3B Instruct",
+    localInfo: llama ? "Llama 3.2 3B" : "Qwen2.5 3B",
+    localTagline: llama ? "On this PC · Q4_K_M" : "On this PC · Q4_K_M",
+    localSize: llama ? "~2.0 GB" : "~2.1 GB",
+  };
+}
+
+function noteEngineCard(provider, title, detail, infoTitle, tagline, facts, selected, pinned, statusAttr, extra) {
+  const rows = facts.map((fact) => `<div class="engine-metric-row"><div class="engine-metric-labels"><span>${esc(fact.label)}</span><strong>${esc(fact.value)}</strong></div></div>`).join("");
+  const status = statusAttr ? ` ${statusAttr}` : "";
+  const extras = extra || {};
+  const locked = extras.locked ? " is-locked" : "";
+  const bar = extras.bar || "";
+  return `<div role="radio" tabindex="0" class="engine-option${pinned ? " is-pinned" : ""}${locked}" data-note-provider="${esc(provider)}" aria-checked="${selected ? "true" : "false"}"><div class="engine-normal-view"><div class="engine-head"><strong>${esc(title)}</strong><button type="button" class="engine-info-btn" data-note-info="${esc(provider)}" title="Model details" aria-label="Model details">${noteInfoIcon(false)}</button></div><p${status}>${esc(detail)}</p>${bar}</div><div class="engine-info-view"><div class="engine-info-head"><div class="engine-info-meta"><strong class="engine-info-title">${esc(infoTitle)}</strong><span class="engine-info-tagline">${esc(tagline)}</span></div><button type="button" class="engine-info-btn active" data-note-info="${esc(provider)}" title="Close details" aria-label="Close details">${noteInfoIcon(true)}</button></div><div class="engine-metrics">${rows}</div></div></div>`;
+}
+
+function noteImproveToggle(settings) {
+  const hasKey = Boolean(settings.hasKey);
+  const on = settings.noteImproveEnabled !== false;
+  const hint = hasKey ? "" : `<p class="note-improve-hint">Add an OpenAI API key below to use note improvement.</p>`;
+  return `<div class="note-improve-inline${hasKey ? "" : " is-unavailable"}"><div class="mode-toggle-card"><div class="mode-toggle-copy"><strong>Note improvement</strong><span>${hasKey ? "Rewrite notes with OpenAI. Model gpt-6-luna." : "An OpenAI API key is required."}</span></div><div class="mode-slider-wrap"><span class="mode-slider-label${on ? "" : " active"}">Off</span><button type="button" class="switch-btn" role="switch" data-note-improve-enabled aria-checked="${on ? "true" : "false"}" aria-label="Turn note improvement on or off"${hasKey ? "" : " disabled"}><span class="switch-thumb"></span></button><span class="mode-slider-label${on ? " active" : ""}">On</span></div></div></div>${hint}`;
 }
 
 function paintCommandEditor() {
@@ -641,16 +721,76 @@ function paintEditor() {
   const editorKey = state.editor.id || "__draft__";
   if (editor.dataset.id === editorKey && editor.querySelector("#editor-title")) {
     editor.hidden = false;
+    if (editor._sparkle && editor._sparkle.paintAvailability) editor._sparkle.paintAvailability();
     return;
+  }
+  if (editor._sparkle) {
+    editor._sparkle.destroy();
+    editor._sparkle = null;
   }
   editor.dataset.id = editorKey;
   editor.hidden = false;
   const titleVal = state.editor.title || "Note";
   const closeIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"></line><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"></line></svg>';
-  editor.innerHTML = `<header class="note-bubble-head"><input id="editor-title" value="${esc(titleVal)}" placeholder="Note title" aria-label="Title"><button type="button" class="editor-close-btn" id="editor-back" title="Close" aria-label="Close">${closeIcon}</button></header><textarea id="editor-body" placeholder="Write or dictate a note..." aria-label="Note">${esc(state.editor.content || "")}</textarea><footer class="note-bubble-foot"><button type="button" id="editor-voice" class="note-voice-btn idle" title="Click to dictate" aria-label="Dictate into note" aria-pressed="false"><svg class="icon-active" width="22" height="22" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.1" stroke="#000000" stroke-width="1.8"></circle><circle cx="8" cy="8" r="2.7" fill="#000000"></circle></svg><svg class="icon-idle" width="20" height="20" viewBox="0 0 18 18" fill="none" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6.25" y="1.75" width="5.5" height="9" rx="2.75"></rect><path d="M3.75 8.25a5.25 5.25 0 0 0 10.5 0M9 13.5V16"></path></svg><span class="icon-busy note-spin"></span></button><button type="button" id="editor-copy">Copy</button><button type="button" id="editor-save">Save</button></footer>`;
+  editor.innerHTML = `<header class="note-bubble-head"><input id="editor-title" value="${esc(titleVal)}" placeholder="Note title" aria-label="Title"><button type="button" class="editor-close-btn" id="editor-back" title="Close" aria-label="Close">${closeIcon}</button></header><textarea id="editor-body" placeholder="Write or dictate a note..." aria-label="Note">${esc(state.editor.content || "")}</textarea><footer class="note-bubble-foot"><button type="button" id="editor-voice" class="note-voice-btn idle" title="Click to dictate" aria-label="Dictate into note" aria-pressed="false"><svg class="icon-active" width="22" height="22" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.1" stroke="#000000" stroke-width="1.8"></circle><circle cx="8" cy="8" r="2.7" fill="#000000"></circle></svg><svg class="icon-idle" width="20" height="20" viewBox="0 0 18 18" fill="none" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6.25" y="1.75" width="5.5" height="9" rx="2.75"></rect><path d="M3.75 8.25a5.25 5.25 0 0 0 10.5 0M9 13.5V16"></path></svg><span class="icon-busy note-spin"></span></button><div class="sparkle-host"></div><button type="button" id="editor-copy">Copy</button><button type="button" id="editor-save">Save</button></footer>`;
   paintEditorVoice();
+  mountEditorSparkle(editor);
   const body = editor.querySelector("#editor-body");
   if (body) body.focus();
+}
+
+function mountEditorSparkle(editor) {
+  if (!window.OpenflowSparkle || !editor) return;
+  const host = editor.querySelector(".sparkle-host");
+  const textarea = editor.querySelector("#editor-body");
+  if (!host || !textarea) return;
+  editor._sparkle = window.OpenflowSparkle.attach({
+    host,
+    root: editor,
+    textarea,
+    getNote() {
+      const title = editor.querySelector("#editor-title");
+      const body = editor.querySelector("#editor-body");
+      return {
+        id: state.editor && state.editor.id ? state.editor.id : "",
+        title: title ? title.value : "Note",
+        content: body ? body.value : "",
+      };
+    },
+    setContent(text) {
+      const body = editor.querySelector("#editor-body");
+      if (body) body.value = text;
+      if (state.editor) state.editor.content = text;
+      if (window.OpenflowSparkle) window.OpenflowSparkle.sync(body, { reveal: true });
+    },
+    setNoteId(id) {
+      if (!state.editor) return;
+      state.editor.id = id;
+      state.editor.isDraft = false;
+      editor.dataset.id = id || "__draft__";
+    },
+    getSettings() {
+      return (state.desk && state.desk.settings) || {};
+    },
+    async onSettings(partial) {
+      const saved = await window.openflow.dispatch("settings.save", partial);
+      if (state.desk && saved && saved.settings) state.desk.settings = saved.settings;
+    },
+    onSaved(pad) {
+      if (!state.desk) return;
+      const pads = state.desk.pads || (state.desk.pads = []);
+      const index = pads.findIndex((row) => row.id === pad.id);
+      if (index >= 0) pads[index] = { ...pads[index], ...pad };
+      else pads.push(pad);
+    },
+    openSettings() {
+      if (editor._sparkle) editor._sparkle.destroy();
+      state.editor = null;
+      state.view = "settings";
+      render();
+    },
+    dispatch: (action, payload) => window.openflow.dispatch(action, payload),
+  });
 }
 
 function currentEditorKey() {
@@ -677,6 +817,8 @@ function setEditorVoiceState(next) {
     const waiters = editorVoice.waiters;
     editorVoice.waiters = [];
     waiters.forEach((resolve) => resolve());
+    const editor = document.querySelector("#editor");
+    if (editor && editor._sparkle) editor._sparkle.onExternalChange();
   }
 }
 
@@ -687,6 +829,7 @@ function writeEditorVoiceText(text) {
   const prefix = base ? (/\s$/.test(base) ? base : `${base} `) : "";
   body.value = prefix + text;
   body.scrollTop = body.scrollHeight;
+  if (window.OpenflowSparkle) window.OpenflowSparkle.sync(body);
   if (document.activeElement === body) body.selectionStart = body.selectionEnd = body.value.length;
   if (state.editor) state.editor.content = body.value;
 }
@@ -742,6 +885,10 @@ function paintOnboarding() {
     return;
   }
   host.hidden = false;
+  if (state.onboardingStep === "note-improve" || state.onboardingStep === "note-improve-key") {
+    host.innerHTML = noteImproveOnboardingHtml();
+    return;
+  }
   if (state.onboardingStep === "apikey") {
     host.innerHTML = `<div class="onboarding-card" role="dialog" aria-modal="true"><div><h2>Enter OpenAI API Key</h2><p class="sub">Enter your OpenAI API key to start dictating with gpt-transcribe.</p></div><div class="key-row"><input id="onboard-api-key" class="onboard-input" type="password" autocomplete="off" spellcheck="false" placeholder="sk-..."></div><div class="onboarding-actions"><button type="button" class="btn-secondary" data-onboard-back>Back</button><button type="button" class="btn-primary" data-onboard-save-key>Save & Start</button></div></div>`;
     const input = host.querySelector("#onboard-api-key");
@@ -749,6 +896,13 @@ function paintOnboarding() {
     return;
   }
   host.innerHTML = `<div class="onboarding-card" role="dialog" aria-modal="true"><div><h2>Welcome to OpenFlow</h2><p class="sub">Choose how you want to transcribe your voice. You can change this anytime in Settings.</p></div><div class="onboarding-choices"><button type="button" class="onboarding-choice" data-onboard-choose="parakeet"><strong><span>Parakeet v3 (Local Open-Source)</span><span class="engine-badge ready">Recommended · Free</span></strong><span>Installed with OpenFlow. Runs locally on your PC in the background — start immediately without an API key.</span></button><button type="button" class="onboarding-choice" data-onboard-choose="openai"><strong><span>OpenAI API (gpt-transcribe)</span><span class="engine-badge">Cloud API</span></strong><span>Transcribe in the cloud using your own OpenAI API key.</span></button></div></div>`;
+}
+
+function noteImproveOnboardingHtml() {
+  if (state.onboardingStep === "note-improve-key") {
+    return `<div class="onboarding-card" role="dialog" aria-modal="true"><div><h2>Improve notes with AI</h2><p class="sub">OpenAI uses the same API key as dictation.</p></div><div class="key-row"><input id="note-onboard-key" class="onboard-input" type="password" autocomplete="off" spellcheck="false" placeholder="sk-..."></div><div class="onboarding-actions"><button type="button" class="btn-secondary" data-note-onboard="later">Later</button><button type="button" class="btn-secondary" data-note-onboard="test">Test key</button><button type="button" class="btn-primary" data-note-onboard="save-key">Save</button></div>${state.noteKeyTest ? `<p class="sub">${esc(state.noteKeyTest)}</p>` : ""}</div>`;
+  }
+  return `<div class="onboarding-card" role="dialog" aria-modal="true"><div><h2>Improve notes with AI</h2><p class="sub">A sparkle button can rewrite notes with your OpenAI API key. You can change this anytime in Settings.</p></div><div class="onboarding-choices"><button type="button" class="onboarding-choice" data-note-onboard="openai"><strong>Use OpenAI</strong><span>Uses the saved API key. Model gpt-6-luna.</span></button><button type="button" class="onboarding-choice" data-note-onboard="later"><strong>Skip</strong><span>Note improvement stays off until you turn it on in Settings.</span></button></div></div>`;
 }
 
 function paintConfirmModal() {
@@ -760,6 +914,14 @@ function paintConfirmModal() {
       : "Parakeet v3 (Open-Source, Local)";
     host.hidden = false;
     host.innerHTML = `<div class="onboarding-card" role="dialog" aria-modal="true"><div><h2>Switch Speech-to-Text Model?</h2><p class="sub">Use <strong>${esc(label)}</strong> for all dictation sessions?</p></div><div class="onboarding-actions"><button type="button" class="btn-secondary" data-confirm-cancel>Cancel</button><button type="button" class="btn-primary" data-confirm-stt-ok>OK</button></div></div>`;
+    return;
+  }
+  if (state.confirmNoteProvider) {
+    const settings = (state.desk && state.desk.settings) || {};
+    const choice = noteModelChoice(settings);
+    const label = state.confirmNoteProvider === "local" ? choice.localTitle : choice.openaiId;
+    host.hidden = false;
+    host.innerHTML = `<div class="onboarding-card" role="dialog" aria-modal="true"><div><h2>Switch note model?</h2><p class="sub">Use <strong>${esc(label)}</strong> for note improvement?</p></div><div class="onboarding-actions"><button type="button" class="btn-secondary" data-confirm-cancel>Cancel</button><button type="button" class="btn-primary" data-confirm-note-ok>OK</button></div></div>`;
     return;
   }
   if (state.confirmDeleteCommandId) {
@@ -1030,6 +1192,86 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    const noteEnabled = event.target.closest("[data-note-improve-enabled]");
+    if (noteEnabled && window.openflow) {
+      const settings = (state.desk && state.desk.settings) || {};
+      if (!settings.hasKey || noteEnabled.disabled) return;
+      await window.openflow.dispatch("settings.save", { noteImproveEnabled: !settings.noteImproveEnabled });
+      await load();
+      return;
+    }
+    const noteInfo = event.target.closest("[data-note-info]");
+    if (noteInfo) {
+      event.stopPropagation();
+      event.preventDefault();
+      if (noteInfo.dataset.noteInfo === "local") state.noteInfoLocal = !state.noteInfoLocal;
+      else state.noteInfoOpenai = !state.noteInfoOpenai;
+      render();
+      return;
+    }
+    const noteProvider = event.target.closest("[data-note-provider]");
+    if (noteProvider && window.openflow) {
+      const next = noteProvider.dataset.noteProvider === "local" ? "local" : "openai";
+      const settings = (state.desk && state.desk.settings) || {};
+      const current = settings.noteImproveProvider === "local" ? "local" : "openai";
+      const choice = noteModelChoice(settings);
+      if (next === "local" && !choice.localRow.downloaded) {
+        await openLocalDownload(choice.localId);
+        return;
+      }
+      if (next === current) return;
+      state.confirmDeleteId = null;
+      state.confirmSttEngine = null;
+      state.confirmNoteProvider = next;
+      paintConfirmModal();
+      return;
+    }
+    const noteOpenAIModel = event.target.closest("[data-note-openai-model]");
+    if (noteOpenAIModel && window.openflow) {
+      await window.openflow.dispatch("settings.save", { noteImproveModel: noteOpenAIModel.dataset.noteOpenaiModel });
+      await load();
+      return;
+    }
+    const noteLocalModel = event.target.closest("[data-note-local-model]");
+    if (noteLocalModel && window.openflow) {
+      await window.openflow.dispatch("settings.save", { noteImproveLocalModel: noteLocalModel.dataset.noteLocalModel });
+      await load();
+      return;
+    }
+    const noteAuto = event.target.closest("[data-note-auto]");
+    if (noteAuto && window.openflow) {
+      const current = !state.desk || !state.desk.settings || state.desk.settings.noteImproveAutoSuggestions !== false;
+      await window.openflow.dispatch("settings.save", { noteImproveAutoSuggestions: !current });
+      await load();
+      return;
+    }
+    const noteDownload = event.target.closest("[data-note-download]");
+    if (noteDownload && window.openflow) {
+      await openLocalDownload(noteDownload.dataset.noteDownload);
+      return;
+    }
+    const noteCancel = event.target.closest("[data-note-cancel]");
+    if (noteCancel && window.openflow) {
+      await window.openflow.dispatch("notes.model.cancel", { id: noteCancel.dataset.noteCancel });
+      state.noteModelProgress = null;
+      await load();
+      return;
+    }
+    const noteDelete = event.target.closest("[data-note-delete]");
+    if (noteDelete && window.openflow) {
+      await window.openflow.dispatch("notes.model.delete", { id: noteDelete.dataset.noteDelete });
+      state.noteModelProgress = null;
+      await load();
+      return;
+    }
+    const noteTest = event.target.closest("[data-note-test-key]");
+    if (noteTest && window.openflow) {
+      const result = await window.openflow.dispatch("notes.model.testKey");
+      state.noteKeyTest = result && result.message ? result.message : "Key test failed.";
+      render();
+      return;
+    }
+
     const bubbleSelect = event.target.closest("[data-bubble-select]");
     if (bubbleSelect && window.openflow) {
       const nextStyle = bubbleSelect.dataset.bubbleSelect;
@@ -1154,6 +1396,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (event.target.closest("[data-confirm-cancel]") || event.target === document.querySelector("#confirm-modal")) {
       state.confirmDeleteId = null;
       state.confirmSttEngine = null;
+      state.confirmNoteProvider = null;
       paintConfirmModal();
       return;
     }
@@ -1162,6 +1405,30 @@ document.addEventListener("DOMContentLoaded", () => {
       state.confirmSttEngine = null;
       await window.openflow.dispatch("settings.save", { sttEngine: nextEngine, onboardingDone: true });
       if (nextEngine === "parakeet") state.askKey = false;
+      await load();
+      return;
+    }
+    if (event.target.closest("[data-confirm-note-ok]") && state.confirmNoteProvider) {
+      const next = state.confirmNoteProvider;
+      state.confirmNoteProvider = null;
+      const settings = (state.desk && state.desk.settings) || {};
+      const choice = noteModelChoice(settings);
+      if (next === "local") {
+        if (!choice.localRow.downloaded) {
+          await openLocalDownload(choice.localId);
+          paintConfirmModal();
+          return;
+        }
+        await window.openflow.dispatch("settings.save", {
+          noteImproveProvider: "local",
+          noteImproveLocalModel: choice.localId,
+        });
+      } else {
+        await window.openflow.dispatch("settings.save", {
+          noteImproveProvider: "openai",
+          noteImproveModel: choice.openaiId,
+        });
+      }
       await load();
       return;
     }
@@ -1394,6 +1661,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (event.target.closest("#editor-back")) {
       stopEditorVoice();
+      const editor = document.querySelector("#editor");
+      if (editor && editor._sparkle) editor._sparkle.destroy();
       state.editor = null;
       render();
       return;
@@ -1527,6 +1796,65 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       return;
     }
+    const noteOnboard = event.target.closest("[data-note-onboard]");
+    if (noteOnboard && window.openflow) {
+      const choice = noteOnboard.dataset.noteOnboard;
+      if (choice === "later") {
+        state.onboardingStep = null;
+        state.noteKeyTest = "";
+        await window.openflow.dispatch("settings.save", { noteImproveEnabled: false, noteImproveOnboardingDone: true, noteImproveOnboardingRelease: NOTE_IMPROVE_ONBOARDING_RELEASE });
+        await load();
+        return;
+      }
+      if (choice === "openai") {
+        const hasKey = state.desk && state.desk.settings && state.desk.settings.hasKey;
+        if (!hasKey) {
+          state.onboardingStep = "note-improve-key";
+          paintOnboarding();
+          return;
+        }
+        state.onboardingStep = null;
+        await window.openflow.dispatch("settings.save", {
+          noteImproveEnabled: true,
+          noteImproveProvider: "openai",
+          noteImproveModel: "gpt-6-luna",
+          noteImproveOnboardingDone: true,
+          noteImproveOnboardingRelease: NOTE_IMPROVE_ONBOARDING_RELEASE,
+        });
+        await load();
+        return;
+      }
+      if (choice === "test") {
+        const input = document.querySelector("#note-onboard-key");
+        const value = input ? input.value.trim() : "";
+        if (value) await window.openflow.dispatch("settings.save", { apiKey: value });
+        const result = await window.openflow.dispatch("notes.model.testKey");
+        state.noteKeyTest = result && result.message ? result.message : "Key test failed.";
+        paintOnboarding();
+        return;
+      }
+      if (choice === "save-key") {
+        const input = document.querySelector("#note-onboard-key");
+        const value = input ? input.value.trim() : "";
+        if (!value && !(state.desk && state.desk.settings && state.desk.settings.hasKey)) {
+          if (input) input.focus();
+          return;
+        }
+        state.onboardingStep = null;
+        state.noteKeyTest = "";
+        const patch = {
+          noteImproveEnabled: true,
+          noteImproveProvider: "openai",
+          noteImproveModel: "gpt-6-luna",
+          noteImproveOnboardingDone: true,
+          noteImproveOnboardingRelease: NOTE_IMPROVE_ONBOARDING_RELEASE,
+        };
+        if (value) patch.apiKey = value;
+        await window.openflow.dispatch("settings.save", patch);
+        await load();
+      }
+      return;
+    }
     if (event.target.closest("[data-onboard-back]")) {
       state.onboardingStep = "choose";
       paintOnboarding();
@@ -1557,6 +1885,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (!window.openflow) return;
   window.openflow.on("note-voice", onEditorVoice);
+  window.openflow.on("note-improve-progress", (payload) => {
+    state.noteModelProgress = payload || null;
+    const status = document.querySelector("[data-note-local-status]");
+    const track = document.querySelector("[data-note-local-track]");
+    const bar = document.querySelector("[data-note-local-bar]");
+    if (payload && payload.done) {
+      if (track) track.hidden = true;
+      load().catch(() => {});
+      return;
+    }
+    if (!status || !payload) return;
+    if (payload.error) {
+      status.textContent = payload.error;
+      if (track) track.hidden = true;
+      return;
+    }
+    if (track) track.hidden = false;
+    if (bar) bar.style.width = `${Math.max(0, Math.min(100, Number(payload.percent) || 0))}%`;
+    const received = formatBytes(payload.received);
+    const speed = payload.bps ? `${(payload.bps / (1024 * 1024)).toFixed(1)} MB/s` : "";
+    status.textContent = `Downloading ${payload.percent || 0}%${received ? ` · ${received}` : ""}${speed ? ` · ${speed}` : ""}`;
+  });
   window.openflow.on("desk-refresh", (payload) => {
     load(payload).catch(() => {});
   });

@@ -112,12 +112,21 @@ function speechRequest({ provider, apiKey, text, voice, model, responseFormat })
   };
 }
 
-function chatRequest({ provider, apiKey, model, system, user }) {
+function chatRequest({ provider, apiKey, model, system, user, temperature, responseFormat }) {
   const preset = defaultsFor(provider);
   const url = provider === "openai"
     ? "https://api.openai.com/v1/chat/completions"
     : "https://api.groq.com/openai/v1/chat/completions";
   assertAllowedUrl(url);
+  const body = {
+    model: model || preset.textModel,
+    temperature: temperature == null ? 0.2 : temperature,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+  };
+  if (responseFormat) body.response_format = responseFormat;
   return {
     url,
     init: {
@@ -126,14 +135,7 @@ function chatRequest({ provider, apiKey, model, system, user }) {
         Authorization: `Bearer ${requireKey(apiKey)}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: model || preset.textModel,
-        temperature: 0.2,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-      }),
+      body: JSON.stringify(body),
     },
   };
 }
@@ -202,11 +204,23 @@ function detectedLanguage(body) {
   return "";
 }
 
+function flattenChatContent(content) {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content.map((part) => {
+    if (typeof part === "string") return part;
+    if (!part || typeof part.text !== "string") return "";
+    const type = part.type ? String(part.type) : "text";
+    if (type !== "text" && type !== "output_text") return "";
+    return part.text;
+  }).join("");
+}
+
 function parseChatText(body) {
-  const text = body && body.choices && body.choices[0] && body.choices[0].message
-    ? body.choices[0].message.content
-    : "";
-  if (typeof text !== "string" || !text.trim()) {
+  const choice = body && body.choices && body.choices[0];
+  const message = choice && choice.message;
+  const text = flattenChatContent(message ? message.content : (choice && choice.text));
+  if (!text.trim()) {
     throw new Error("The API did not return text.");
   }
   return text.trim();
@@ -281,6 +295,7 @@ module.exports = {
   assertAllowedUrl,
   transcriptionRequest,
   speechRequest,
+  chatRequest,
   translationRequest,
   rewriteRequest,
   instructRequest,

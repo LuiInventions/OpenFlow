@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';">
+  <title>Downloading local note model</title>
+  <style>
+    :root {
+      --bg: #faf9f7;
+      --surface: #ffffff;
+      --line: #e4e1d8;
+      --fg: #1a1a1a;
+      --muted: #6e6d68;
+      --soft: #f0eee8;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: "Segoe UI", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+      overflow: hidden;
+    }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 22px 26px;
+    }
+    .card {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 22px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 2px 10px rgba(26, 26, 26, 0.05);
+    }
+    h1 {
+      margin: 0;
+      font-family: Georgia, "Palatino Linotype", serif;
+      font-size: 22px;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+    }
+    .sub {
+      margin: 4px 0 0;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .track {
+      width: 100%;
+      height: 12px;
+      border-radius: 999px;
+      background: var(--soft);
+      border: 1px solid var(--line);
+      overflow: hidden;
+    }
+    .fill {
+      height: 100%;
+      width: 0%;
+      background: var(--fg);
+      border-radius: 999px;
+      transition: width 0.12s ease;
+    }
+    .meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 12.5px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .meta .pct { color: var(--muted); }
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    button {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--fg);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.primary {
+      background: #111111;
+      color: #ffffff;
+      border-color: #111111;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div>
+      <h1 id="title">Downloading Qwen2.5 3B Instruct</h1>
+      <p class="sub" id="status-sub">About 2.1 GB stays on this PC. You can minimize this window. Progress also appears in Settings.</p>
+    </div>
+    <div class="track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bar">
+      <div class="fill" id="bar-fill"></div>
+    </div>
+    <div class="meta">
+      <span id="mb-text">0 MB / 2.1 GB</span>
+      <span class="pct" id="pct-text">0%</span>
+    </div>
+    <div class="actions">
+      <button type="button" id="cancel">Cancel</button>
+      <button type="button" id="side" class="primary">Minimize</button>
+    </div>
+  </div>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const modelId = params.get("id") || "qwen2.5-3b-instruct-q4";
+    const fill = document.getElementById("bar-fill");
+    const bar = document.getElementById("bar");
+    const mbText = document.getElementById("mb-text");
+    const pctText = document.getElementById("pct-text");
+    const sub = document.getElementById("status-sub");
+    const title = document.getElementById("title");
+    const cancelBtn = document.getElementById("cancel");
+    const sideBtn = document.getElementById("side");
+    let finished = false;
+
+    function formatBytes(bytes) {
+      const value = Number(bytes);
+      if (!Number.isFinite(value) || value <= 0) return "0 MB";
+      if (value < 1024 * 1024 * 1024) return (value / (1024 * 1024)).toFixed(0) + " MB";
+      return (value / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+    }
+
+    function paint(data) {
+      if (!data) return;
+      if (data.error) {
+        finished = true;
+        sub.textContent = data.error;
+        sideBtn.textContent = "Retry";
+        sideBtn.dataset.action = "retry";
+        cancelBtn.textContent = "Close";
+        cancelBtn.dataset.action = "close";
+        return;
+      }
+      const pct = Math.max(0, Math.min(100, Number(data.percent) || 0));
+      fill.style.width = pct + "%";
+      bar.setAttribute("aria-valuenow", String(pct));
+      const received = formatBytes(data.received);
+      const total = formatBytes(data.total || 2100000000);
+      const speed = data.bps ? " · " + (data.bps / (1024 * 1024)).toFixed(1) + " MB/s" : "";
+      mbText.textContent = received + " / " + total + speed;
+      pctText.textContent = pct + "%";
+      if (data.done) {
+        finished = true;
+        title.textContent = "Local model ready";
+        sub.textContent = "Qwen2.5 3B Instruct is on this PC and can now be selected.";
+        sideBtn.textContent = "Close";
+        sideBtn.dataset.action = "close";
+        cancelBtn.hidden = true;
+      }
+    }
+
+    sideBtn.addEventListener("click", () => {
+      if (!window.openflow) return;
+      const action = sideBtn.dataset.action || "minimize";
+      if (action === "retry") {
+        finished = false;
+        cancelBtn.hidden = false;
+        cancelBtn.textContent = "Cancel";
+        cancelBtn.dataset.action = "cancel";
+        sideBtn.textContent = "Minimize";
+        sideBtn.dataset.action = "minimize";
+        title.textContent = "Downloading Qwen2.5 3B Instruct";
+        sub.textContent = "About 2.1 GB stays on this PC. You can minimize this window. Progress also appears in Settings.";
+        window.openflow.dispatch("notes.model.openDownload", { id: modelId, selectWhenReady: true });
+        return;
+      }
+      if (action === "close") {
+        window.openflow.dispatch("notes.model.closeDownload");
+        return;
+      }
+      window.openflow.dispatch("notes.model.minimizeDownload");
+    });
+
+    cancelBtn.addEventListener("click", () => {
+      if (!window.openflow) return;
+      if (cancelBtn.dataset.action === "close") {
+        window.openflow.dispatch("notes.model.closeDownload");
+        return;
+      }
+      window.openflow.dispatch("notes.model.cancel", { id: modelId });
+    });
+
+    if (window.openflow) {
+      window.openflow.on("note-improve-progress", (data) => {
+        if (data && data.id && data.id !== modelId) return;
+        paint(data);
+      });
+    }
+  </script>
+</body>
+</html>
