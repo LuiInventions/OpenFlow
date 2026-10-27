@@ -125,24 +125,35 @@
       return { destroy() {}, onExternalChange() {}, close() {} };
     }
     host.dataset.mounted = "1";
-    host.innerHTML = `<button type="button" class="sparkle-btn" data-sparkle-toggle aria-expanded="false" title="Improve"><span class="sparkle-glyph">${ICON}</span><span>Improve</span></button><div class="sparkle-panel" data-sparkle-panel hidden><div class="sparkle-head"><span class="sparkle-title">${ICON}<span>Improve Note</span></span><button type="button" class="sparkle-x" data-sparkle-close aria-label="Close" title="Close"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"></line><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"></line></svg></button></div><div class="sparkle-chips" data-sparkle-chips></div><div class="sparkle-field"><input class="sparkle-text" data-sparkle-input placeholder="How should this note be improved?" aria-label="How should this note be improved?"><button type="button" class="sparkle-send" data-sparkle-send aria-label="Send" title="Send"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"></path></svg></button></div><div class="sparkle-meta"><span data-sparkle-count>0/6 words</span><button type="button" class="sparkle-link" data-sparkle-history>History</button></div><p class="sparkle-hint" data-sparkle-limit hidden>At most 6 words.</p><div class="sparkle-privacy" data-sparkle-privacy hidden><p>This note is sent to OpenAI.</p><div class="sparkle-actions"><button type="button" class="sparkle-chip" data-sparkle-ack>Continue</button></div></div><div class="sparkle-preview" data-sparkle-preview hidden><p data-sparkle-preview-text></p><div class="sparkle-actions"><button type="button" class="sparkle-chip" data-sparkle-accept>Use it anyway</button><button type="button" class="sparkle-ghost" data-sparkle-reject>Discard</button></div></div></div>`;
-    const panel = host.querySelector("[data-sparkle-panel]");
-    const chips = host.querySelector("[data-sparkle-chips]");
-    const input = host.querySelector("[data-sparkle-input]");
-    const send = host.querySelector("[data-sparkle-send]");
-    const count = host.querySelector("[data-sparkle-count]");
-    const limitHint = host.querySelector("[data-sparkle-limit]");
-    const privacy = host.querySelector("[data-sparkle-privacy]");
-    const preview = host.querySelector("[data-sparkle-preview]");
-    const previewText = host.querySelector("[data-sparkle-preview-text]");
+    const REFRESH_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.1 8a5.1 5.1 0 1 1-1.35-3.45"></path><path d="M13.5 2.4V5.6H10.3"></path></svg>';
+    const SEND_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 12.5V3.5"></path><path d="M4.5 7 8 3.5 11.5 7"></path></svg>';
+    host.innerHTML = `<button type="button" class="sparkle-btn" data-sparkle-toggle aria-expanded="false" title="Improve" aria-label="Improve"><span class="sparkle-glyph">${ICON}</span><span class="sparkle-label">Improve</span></button>`;
+    const panelMarkup = `<div class="sparkle-panel" data-sparkle-panel aria-hidden="true"><div class="sparkle-chips-row"><div class="sparkle-chips" data-sparkle-chips></div><button type="button" class="sparkle-history" data-sparkle-history>History</button><button type="button" class="sparkle-refresh" data-sparkle-refresh aria-label="New suggestions" title="New suggestions">${REFRESH_ICON}</button></div><div class="sparkle-field"><input class="sparkle-text" data-sparkle-input placeholder="Follow up or ask a question" aria-label="Follow up or ask a question"><span class="sparkle-enter">Press Enter or</span><button type="button" class="sparkle-send" data-sparkle-send aria-label="Send" title="Send">${SEND_ICON}</button></div><p class="sparkle-hint" data-sparkle-limit hidden>At most 6 words.</p><div class="sparkle-privacy" data-sparkle-privacy hidden><p>This note is sent to OpenAI.</p><div class="sparkle-actions"><button type="button" class="sparkle-chip" data-sparkle-ack>Continue</button></div></div><div class="sparkle-preview" data-sparkle-preview hidden><p data-sparkle-preview-text></p><div class="sparkle-actions"><button type="button" class="sparkle-chip" data-sparkle-accept>Use it anyway</button><button type="button" class="sparkle-ghost" data-sparkle-reject>Discard</button></div></div></div>`;
+    const dock = root.querySelector("[data-sparkle-dock]");
+    if (dock) {
+      dock.innerHTML = `<div class="sparkle-dock-clip">${panelMarkup}</div>`;
+      dock.setAttribute("inert", "");
+    } else host.insertAdjacentHTML("beforeend", panelMarkup);
+    const scope = dock || host;
+    const panel = scope.querySelector("[data-sparkle-panel]");
+    const chips = scope.querySelector("[data-sparkle-chips]");
+    const input = scope.querySelector("[data-sparkle-input]");
+    const send = scope.querySelector("[data-sparkle-send]");
+    const count = scope.querySelector("[data-sparkle-count]");
+    const limitHint = scope.querySelector("[data-sparkle-limit]");
+    const privacy = scope.querySelector("[data-sparkle-privacy]");
+    const preview = scope.querySelector("[data-sparkle-preview]");
+    const previewText = scope.querySelector("[data-sparkle-preview-text]");
     const button = host.querySelector("[data-sparkle-toggle]");
-    let toast = root.querySelector(":scope > .sparkle-toast");
+    const toastParent = textarea.parentElement && textarea.parentElement.classList.contains("note-write") ? textarea.parentElement : root;
+    let toast = toastParent.querySelector(":scope > .sparkle-toast, :scope > .sparkle-undo");
     if (!toast) {
       toast = document.createElement("div");
       toast.className = "sparkle-toast";
       toast.hidden = true;
-      root.appendChild(toast);
+      toastParent.appendChild(toast);
     }
+    let panelOpen = false;
     let busy = false;
     let applying = false;
     let timer = null;
@@ -183,7 +194,7 @@
       if (!busy) button.disabled = !on;
       if (!on) {
         button.title = settings().hasKey ? "Note improvement is off." : "Add an OpenAI API key in Settings.";
-        if (!panel.hidden) hidePanel();
+        if (panelOpen) hidePanel();
       } else if (!busy) {
         button.title = "Improve";
       }
@@ -199,9 +210,11 @@
 
     function paintCount() {
       const total = wordCount(input.value);
-      count.textContent = `${total}/6 words`;
+      if (count) count.textContent = `${total}/6 words`;
       const over = total > 6;
       limitHint.hidden = !over;
+      const enter = panel.querySelector(".sparkle-enter");
+      if (enter) enter.hidden = total > 0;
       send.disabled = busy || total === 0;
       input.setAttribute("aria-invalid", over ? "true" : "false");
     }
@@ -278,6 +291,39 @@
       showChips(result && result.suggestions ? result.suggestions : FALLBACK, false);
     }
 
+    async function refreshSuggestionsUi() {
+      if (busy) return;
+      showChips(FALLBACK, true);
+      const note = options.getNote();
+      const result = await dispatch("notes.sparkle.suggest", {
+        id: note.id,
+        title: note.title,
+        content: note.content,
+        save: Boolean(note.id),
+        force: true,
+      });
+      if (closed) return;
+      showChips(result && result.suggestions ? result.suggestions : FALLBACK, false);
+    }
+
+    function setOpen(open) {
+      panelOpen = Boolean(open);
+      button.setAttribute("aria-expanded", panelOpen ? "true" : "false");
+      if (dock) {
+        dock.classList.toggle("is-open", panelOpen);
+        if (panelOpen) dock.removeAttribute("inert");
+        else dock.setAttribute("inert", "");
+        panel.removeAttribute("hidden");
+        panel.setAttribute("aria-hidden", panelOpen ? "false" : "true");
+      } else {
+        panel.hidden = !panelOpen;
+      }
+      if (!panelOpen) {
+        privacy.hidden = true;
+        preview.hidden = true;
+      }
+    }
+
     function schedule() {
       clearTimeout(timer);
       const current = settings();
@@ -303,10 +349,7 @@
     }
 
     function hidePanel() {
-      panel.hidden = true;
-      button.setAttribute("aria-expanded", "false");
-      privacy.hidden = true;
-      preview.hidden = true;
+      setOpen(false);
     }
 
     async function run(instruction) {
@@ -415,8 +458,7 @@
     }
 
     function close() {
-      panel.hidden = true;
-      button.setAttribute("aria-expanded", "false");
+      setOpen(false);
       const note = options.getNote();
       if (busy && note.id) dispatch("notes.sparkle.cancel", { id: note.id }).catch(() => {});
       busy = false;
@@ -424,19 +466,23 @@
     }
 
     function onClick(event) {
-      const target = event.target.closest("[data-sparkle-toggle], [data-sparkle-close], [data-sparkle-chip], [data-sparkle-send], [data-sparkle-ack], [data-sparkle-accept], [data-sparkle-reject], [data-sparkle-history], [data-sparkle-undo]");
+      const target = event.target.closest("[data-sparkle-toggle], [data-sparkle-close], [data-sparkle-chip], [data-sparkle-send], [data-sparkle-ack], [data-sparkle-accept], [data-sparkle-reject], [data-sparkle-history], [data-sparkle-refresh], [data-sparkle-undo]");
       if (!target) return;
       event.preventDefault();
       event.stopPropagation();
       if (target.hasAttribute("data-sparkle-toggle")) {
         if (!available()) return;
-        const open = panel.hidden;
-        panel.hidden = !open;
-        button.setAttribute("aria-expanded", open ? "true" : "false");
-        if (open) {
+        const opening = !panelOpen;
+        if (opening) {
+          setOpen(true);
           paintCount();
           loadCached(Boolean(settings().noteImproveAutoSuggestions !== false && available())).catch(() => {});
         } else if (busy) close();
+        else setOpen(false);
+        return;
+      }
+      if (target.hasAttribute("data-sparkle-refresh")) {
+        refreshSuggestionsUi().catch(() => {});
         return;
       }
       if (target.hasAttribute("data-sparkle-close")) {
@@ -511,7 +557,7 @@
         run(input.value).catch(() => {});
         return;
       }
-      if (event.key === "Escape" && !panel.hidden) {
+      if (event.key === "Escape" && panelOpen) {
         event.preventDefault();
         event.stopPropagation();
         close();
@@ -539,9 +585,12 @@
       editingNotes.delete(textarea);
       paintMarkdown(textarea);
     });
-    host.addEventListener("click", onClick);
-    host.addEventListener("input", onInput);
-    host.addEventListener("keydown", onKeydown);
+    const surfaces = dock ? [host, dock] : [host];
+    surfaces.forEach((node) => {
+      node.addEventListener("click", onClick);
+      node.addEventListener("input", onInput);
+      node.addEventListener("keydown", onKeydown);
+    });
     textarea.addEventListener("input", onInput);
     textarea.addEventListener("keydown", onKeydown);
     toast.addEventListener("click", onToastClick);
@@ -557,9 +606,11 @@
         closeHistory();
         const note = options.getNote();
         if (busy && note.id) dispatch("notes.sparkle.cancel", { id: note.id }).catch(() => {});
-        host.removeEventListener("click", onClick);
-        host.removeEventListener("input", onInput);
-        host.removeEventListener("keydown", onKeydown);
+        surfaces.forEach((node) => {
+          node.removeEventListener("click", onClick);
+          node.removeEventListener("input", onInput);
+          node.removeEventListener("keydown", onKeydown);
+        });
         textarea.removeEventListener("input", onInput);
         textarea.removeEventListener("keydown", onKeydown);
         toast.removeEventListener("click", onToastClick);

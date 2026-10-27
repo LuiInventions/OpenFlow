@@ -614,10 +614,12 @@ function paintCommandEditor() {
   const cmd = state.commandEditor;
   const editorKey = `cmd_${cmd.id || "__new__"}`;
   if (editor.dataset.id === editorKey && editor.querySelector("#cmd-editor-body")) {
+    editor.classList.remove("note-shell");
     editor.hidden = false;
     return;
   }
   editor.dataset.id = editorKey;
+  editor.classList.remove("note-shell");
   editor.hidden = false;
   const closeIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"></line><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"></line></svg>';
   const runAsAdmin = Boolean(cmd.runAsAdmin);
@@ -716,11 +718,13 @@ function paintEditor() {
     if (state.view !== "commands" || !state.commandEditor) {
       editor.hidden = true;
       editor.dataset.id = "";
+      editor.classList.remove("note-shell");
     }
     return;
   }
   const editorKey = state.editor.id || "__draft__";
   if (editor.dataset.id === editorKey && editor.querySelector("#editor-title")) {
+    editor.classList.add("note-shell");
     editor.hidden = false;
     if (editor._sparkle && editor._sparkle.paintAvailability) editor._sparkle.paintAvailability();
     return;
@@ -730,10 +734,12 @@ function paintEditor() {
     editor._sparkle = null;
   }
   editor.dataset.id = editorKey;
+  editor.classList.add("note-shell");
   editor.hidden = false;
   const titleVal = state.editor.title || "Note";
   const closeIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"></line><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"></line></svg>';
-  editor.innerHTML = `<header class="note-bubble-head"><input id="editor-title" value="${esc(titleVal)}" placeholder="Note title" aria-label="Title"><button type="button" class="editor-close-btn" id="editor-back" title="Close" aria-label="Close">${closeIcon}</button></header><textarea id="editor-body" placeholder="Write or dictate a note..." aria-label="Note">${esc(state.editor.content || "")}</textarea><footer class="note-bubble-foot"><button type="button" id="editor-voice" class="note-voice-btn idle" title="Click to dictate" aria-label="Dictate into note" aria-pressed="false"><svg class="icon-active" width="22" height="22" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.1" stroke="#000000" stroke-width="1.8"></circle><circle cx="8" cy="8" r="2.7" fill="#000000"></circle></svg><svg class="icon-idle" width="20" height="20" viewBox="0 0 18 18" fill="none" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6.25" y="1.75" width="5.5" height="9" rx="2.75"></rect><path d="M3.75 8.25a5.25 5.25 0 0 0 10.5 0M9 13.5V16"></path></svg><span class="icon-busy note-spin"></span></button><div class="sparkle-host"></div><button type="button" id="editor-copy">Copy</button><button type="button" id="editor-save">Save</button></footer>`;
+  const voiceIcon = '<svg class="icon-active" width="22" height="22" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.1" stroke="#000000" stroke-width="1.8"></circle><circle cx="8" cy="8" r="2.7" fill="#000000"></circle></svg><svg class="icon-idle" width="20" height="20" viewBox="0 0 18 18" fill="none" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6.25" y="1.75" width="5.5" height="9" rx="2.75"></rect><path d="M3.75 8.25a5.25 5.25 0 0 0 10.5 0M9 13.5V16"></path></svg><span class="icon-busy note-spin"></span>';
+  editor.innerHTML = `<div class="note-rail"><div class="sparkle-host"></div><button type="button" id="editor-voice" class="note-voice-btn idle" title="Click to dictate" aria-label="Dictate into note" aria-pressed="false">${voiceIcon}</button></div><div class="note-top"><input id="editor-title" value="${esc(titleVal)}" placeholder="Note title" aria-label="Title"><button type="button" class="editor-close-btn" id="editor-back" title="Close" aria-label="Close">${closeIcon}</button></div><div class="note-main"><div class="note-write"><textarea id="editor-body" placeholder="Write or dictate a note..." aria-label="Note">${esc(state.editor.content || "")}</textarea></div><div class="note-foot"><button type="button" id="editor-copy">Copy</button><button type="button" id="editor-save">Save</button></div><div class="sparkle-dock" data-sparkle-dock></div></div><div class="note-lip"></div>`;
   paintEditorVoice();
   mountEditorSparkle(editor);
   const body = editor.querySelector("#editor-body");

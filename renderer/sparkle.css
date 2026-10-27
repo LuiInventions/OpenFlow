@@ -407,11 +407,11 @@
 .note-md {
   z-index: 2;
   overflow: auto;
-  padding: 18px 20px;
-  background: #ffffff;
+  padding: 12px 14px;
+  background: #fcfcfb;
   color: var(--fg, var(--vast-950));
-  font-size: 14.5px;
-  line-height: 1.6;
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .note-md h1,
@@ -422,9 +422,9 @@
   font-weight: 650;
 }
 
-.note-md h1 { font-size: 22px; }
-.note-md h2 { font-size: 18px; }
-.note-md h3 { font-size: 15.5px; }
+.note-md h1 { font-size: 18px; }
+.note-md h2 { font-size: 15px; }
+.note-md h3 { font-size: 13px; }
 
 .note-md p,
 .note-md ul,
@@ -633,8 +633,397 @@
   #editor-body.is-shimmer,
   #body.is-shimmer,
   .note-fog-btn,
-  .note-fog-btn .sparkle-icon {
+  .note-fog-btn .sparkle-icon,
+  .sparkle-dock,
+  .sparkle-dock .sparkle-panel,
+  #editor .sparkle-dock .sparkle-panel,
+  .card .sparkle-dock .sparkle-panel {
     animation: none;
     transition: none;
+    transform: none;
   }
+}
+
+.note-shell {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  grid-template-rows: 44px minmax(0, 1fr) 8px;
+  background: #f5f4f0;
+  overflow: hidden;
+}
+
+#editor.note-shell {
+  height: 422px;
+  max-height: 100%;
+  min-height: min(280px, 100%);
+  flex: 0 1 422px;
+  align-self: flex-start;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  grid-template-rows: 44px minmax(0, 1fr) 8px;
+  background: #f5f4f0;
+  border: 1px solid #eeebe3;
+  border-radius: 20px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.card.note-shell {
+  height: 100%;
+  background: #f5f4f0;
+  border-radius: 20px;
+}
+
+.note-shell > .note-rail {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 0 0 10px;
+  background: transparent;
+  z-index: 2;
+}
+
+.note-shell > .note-top {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 12px 6px 2px;
+  background: transparent;
+  border: 0;
+}
+
+.note-shell > .note-main {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: #fcfcfb;
+  border-top-left-radius: 16px;
+  border-bottom-left-radius: 14px;
+  border-bottom-right-radius: 14px;
+  overflow: hidden;
+}
+
+.note-shell > .note-lip {
+  grid-column: 2;
+  grid-row: 3;
+  background: transparent;
+}
+
+.note-write {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.note-write > textarea {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  resize: none;
+  border: 0;
+  outline: none;
+  background: #fcfcfb;
+  color: var(--fg, #1a1a1a);
+  font-size: 11px;
+  line-height: 1.45;
+  padding: 12px 14px;
+}
+
+.note-write > textarea::placeholder {
+  color: var(--muted, #71716e);
+}
+
+.note-write > .note-md,
+.note-write > .note-fog {
+  position: absolute;
+  inset: 0;
+  grid-row: auto;
+  grid-column: auto;
+}
+
+.note-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 2px 12px 8px;
+  background: #fcfcfb;
+}
+
+.note-rail .sparkle-host {
+  display: flex;
+  justify-content: center;
+}
+
+.note-rail .note-voice-btn {
+  margin: 0;
+}
+
+.sparkle-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.note-rail .sparkle-btn {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
+  color: #1a1a1a;
+  display: grid;
+  place-items: center;
+}
+
+.note-rail .sparkle-btn .sparkle-icon {
+  width: 16px;
+  height: 16px;
+  color: #1a1a1a;
+}
+
+.note-rail .sparkle-btn:hover:not(:disabled) {
+  background: rgba(26, 26, 26, 0.06);
+}
+
+.note-rail .sparkle-btn:hover:not(:disabled) .sparkle-icon {
+  transform: none;
+}
+
+.note-rail .sparkle-btn[aria-expanded="true"] {
+  background: rgba(26, 26, 26, 0.12);
+}
+
+.note-rail .sparkle-btn:disabled,
+.note-rail .sparkle-btn.is-unavailable,
+.note-rail .sparkle-btn.is-busy:disabled {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: #1a1a1a;
+}
+
+.note-rail .sparkle-btn.is-unavailable {
+  opacity: 0.35;
+}
+
+.note-rail .sparkle-btn.is-busy:disabled {
+  opacity: 1;
+}
+
+.sparkle-dock {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin: 0 12px;
+  min-height: 0;
+  transition: grid-template-rows 220ms ease, margin 220ms ease;
+}
+
+.sparkle-dock.is-open {
+  grid-template-rows: 1fr;
+  margin: 0 12px 8px;
+}
+
+.sparkle-dock-clip {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sparkle-dock .sparkle-panel {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  width: auto;
+  max-width: none;
+  transform: translateY(100%);
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 8px 6px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #eceae4;
+  box-shadow: 0 6px 18px rgba(26, 26, 26, 0.06);
+  transition: transform 220ms ease;
+}
+
+#editor .sparkle-dock .sparkle-panel,
+.card .sparkle-dock .sparkle-panel {
+  left: auto;
+  right: auto;
+  width: auto;
+  max-width: none;
+  transform: translateY(100%);
+  padding: 8px 8px 6px;
+}
+
+.sparkle-dock.is-open .sparkle-panel,
+#editor .sparkle-dock.is-open .sparkle-panel,
+.card .sparkle-dock.is-open .sparkle-panel {
+  transform: translateY(0);
+}
+
+.sparkle-dock:not(.is-open) {
+  pointer-events: none;
+}
+
+.sparkle-chips-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 24px;
+}
+
+.sparkle-dock .sparkle-chips {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  gap: 6px;
+}
+
+.sparkle-dock .sparkle-chips .sparkle-chip {
+  flex: 0 0 auto;
+  min-width: 0;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid #e6e3db;
+  border-radius: 999px;
+  background: #f5f4f0;
+  color: #2a2a28;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 22px;
+}
+
+.sparkle-history {
+  flex: 0 0 auto;
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: #8a877f;
+  padding: 0 2px;
+  height: 24px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.sparkle-history:hover {
+  color: #1a1a1a;
+}
+
+.sparkle-refresh {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #5c5a55;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.sparkle-refresh:hover {
+  background: #f5f4f0;
+  color: #1a1a1a;
+}
+
+.sparkle-dock .sparkle-field {
+  min-height: 34px;
+  height: 34px;
+  gap: 8px;
+  padding: 0 4px 0 12px;
+  border-radius: 12px;
+  border: 1px solid #e6e4de;
+  background: #ffffff;
+}
+
+.sparkle-dock .sparkle-field:focus-within {
+  border-color: #ddd9d1;
+  background: #ffffff;
+}
+
+.sparkle-dock .sparkle-text {
+  padding: 0;
+  font-size: 12.5px;
+  line-height: 1.2;
+}
+
+.sparkle-enter {
+  flex: 0 0 auto;
+  color: #b0ada6;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.sparkle-text:not(:placeholder-shown) ~ .sparkle-enter {
+  display: none;
+}
+
+.sparkle-dock .sparkle-send {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: #f0eeea;
+  color: #3a3a38;
+}
+
+.sparkle-dock .sparkle-send:hover:not(:disabled) {
+  background: #e7e4de;
+  color: #1a1a1a;
+}
+
+.sparkle-dock .sparkle-hint {
+  margin: 0;
+  font-size: 11px;
+}
+
+.note-write > .sparkle-toast,
+.note-write > .sparkle-undo {
+  bottom: 10px;
+}
+
+.note-top,
+.note-rail {
+  -webkit-app-region: drag;
+}
+
+.note-top button,
+.note-top input,
+.note-rail button,
+.note-foot button,
+.sparkle-dock button,
+.sparkle-dock input {
+  -webkit-app-region: no-drag;
 }

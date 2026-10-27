@@ -1088,13 +1088,13 @@ label.key input:focus, .onboard-input:focus {
 #editor-body {
   width: 100%;
   height: 100%;
-  min-height: 300px;
+  min-height: 0;
   border: 0;
-  background: #ffffff;
-  padding: 18px 20px;
+  background: #fcfcfb;
+  padding: 12px 14px;
   resize: none;
-  font-size: 14.5px;
-  line-height: 1.6;
+  font-size: 11px;
+  line-height: 1.45;
   color: var(--fg);
   outline: none;
 }
@@ -1110,7 +1110,8 @@ label.key input:focus, .onboard-input:focus {
 }
 
 /* Black dictation mic in the bottom-left of the note editor (same as the floating note pad) */
-.note-bubble-foot .note-voice-btn {
+.note-bubble-foot .note-voice-btn,
+.note-rail .note-voice-btn {
   margin-right: auto;
   width: 32px;
   height: 32px;
@@ -1126,7 +1127,8 @@ label.key input:focus, .onboard-input:focus {
   transition: transform .14s ease, opacity .14s ease;
 }
 
-.note-bubble-foot .note-voice-btn:hover:not(:disabled) {
+.note-bubble-foot .note-voice-btn:hover:not(:disabled),
+.note-rail .note-voice-btn:hover:not(:disabled) {
   transform: scale(1.12);
 }
 
@@ -1142,11 +1144,13 @@ label.key input:focus, .onboard-input:focus {
   display: block;
 }
 
-.note-bubble-foot .note-voice-btn.active {
+.note-bubble-foot .note-voice-btn.active,
+.note-rail .note-voice-btn.active {
   animation: editor-mic-pulse 1.4s ease-in-out infinite;
 }
 
-.note-bubble-foot .note-voice-btn.active::after {
+.note-bubble-foot .note-voice-btn.active::after,
+.note-rail .note-voice-btn.active::after {
   content: "";
   position: absolute;
   inset: -3px;
@@ -1181,6 +1185,8 @@ label.key input:focus, .onboard-input:focus {
 @media (prefers-reduced-motion: reduce) {
   .note-bubble-foot .note-voice-btn.active,
   .note-bubble-foot .note-voice-btn.active::after,
+  .note-rail .note-voice-btn.active,
+  .note-rail .note-voice-btn.active::after,
   .note-voice-btn .note-spin { animation: none; }
 }
 
@@ -1189,9 +1195,10 @@ label.key input:focus, .onboard-input:focus {
   background: var(--sand-500);
   border: 1px solid var(--sand-600);
   border-radius: 999px;
-  padding: 8px 18px;
-  font-size: 13px;
+  padding: 3px 18px;
+  font-size: 12.5px;
   font-weight: 600;
+  line-height: 1.2;
   transition: all .15s ease;
 }
 
@@ -1206,14 +1213,15 @@ label.key input:focus, .onboard-input:focus {
 }
 
 #editor-save {
-  background: var(--fg);
-  color: var(--sand-50);
-  border: 1px solid var(--fg);
+  background: #000000;
+  color: #ffffff;
+  border: 1px solid #000000;
   border-radius: 999px;
-  padding: 8px 18px;
-  font-size: 13px;
+  padding: 3px 18px;
+  font-size: 12.5px;
   font-weight: 600;
-  box-shadow: var(--shadow-xs);
+  line-height: 1.2;
+  box-shadow: none;
   transition: all .15s ease;
 }
 

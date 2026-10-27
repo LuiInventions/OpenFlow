@@ -321,7 +321,8 @@ function createNoteSparkle(deps) {
     let padId = payload.id || "";
     if (payload.save) padId = ensurePad(payload).id;
     const current = cached({ id: padId, content });
-    if (current.fresh || payload.onlyCached || (padId && jobs.has(padId))) return { ...current, id: padId };
+    if (padId && jobs.has(padId)) return { ...current, id: padId, pending: true };
+    if (!payload.force && (current.fresh || payload.onlyCached)) return { ...current, id: padId };
     const next = await refreshSuggestions(padId, content);
     return { ...next, id: padId };
   }

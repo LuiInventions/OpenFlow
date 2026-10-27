@@ -36,32 +36,11 @@
     body { padding: 14px; }
     .card {
       height: 100%;
-      background: var(--sand-50);
-      border: 1px solid var(--sand-600);
+      background: #f5f4f0;
+      border: 1px solid #eeebe3;
       border-radius: 20px;
       box-shadow: 0 20px 50px rgba(26, 26, 26, 0.18), 0 4px 12px rgba(26, 26, 26, 0.08);
-      display: grid;
-      grid-template-rows: auto 1fr auto;
       overflow: hidden;
-    }
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--sand-600);
-      background: var(--sand-500);
-      -webkit-app-region: drag;
-    }
-    footer {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 10px;
-      padding: 12px 16px;
-      border-top: 1px solid var(--sand-600);
-      background: var(--sand-50);
     }
     button, input, textarea {
       font: inherit;
@@ -115,26 +94,27 @@
       resize: none;
       width: 100%;
       height: 100%;
-      padding: 16px 18px;
+      padding: 12px 14px;
       outline: none;
-      font-size: 14.5px;
-      line-height: 1.6;
-      background: #ffffff;
+      font-size: 11px;
+      line-height: 1.45;
+      background: #fcfcfb;
       color: var(--vast-950);
     }
     textarea::placeholder { color: var(--vast-600); }
     #save, #copy {
       border-radius: 999px;
-      padding: 8px 18px;
-      font-size: 13px;
+      padding: 3px 18px;
+      font-size: 12.5px;
       font-weight: 600;
+      line-height: 1.2;
       transition: all .15s ease;
     }
     #save {
-      background: var(--vast-950);
-      color: var(--sand-50);
-      border: 1px solid var(--vast-950);
-      box-shadow: 0 1px 2px rgba(26, 26, 26, 0.12);
+      background: #000000;
+      color: #ffffff;
+      border: 1px solid #000000;
+      box-shadow: none;
     }
     #save:hover:not(:disabled) { opacity: 0.92; transform: translateY(-0.5px); }
     #save.saved { background: #16a34a !important; color: #ffffff !important; border-color: #16a34a !important; }
@@ -148,7 +128,7 @@
 
     /* Deep black voice note icon button in bottom-left */
     .note-voice-btn {
-      margin-right: auto;
+      margin: 0;
       width: 32px;
       height: 32px;
       border-radius: 50%;
@@ -219,8 +199,16 @@
   </style>
 </head>
 <body>
-  <div class="card">
-    <header>
+  <div class="card note-shell">
+    <div class="note-rail">
+      <div class="sparkle-host"></div>
+      <button id="voice" class="note-voice-btn idle" type="button" title="Click to listen again" aria-label="Voice note">
+        <svg class="icon-active" width="22" height="22" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.1" stroke="#000000" stroke-width="1.8"></circle><circle cx="8" cy="8" r="2.7" fill="#000000"></circle></svg>
+        <svg class="icon-idle" width="20" height="20" viewBox="0 0 18 18" fill="none" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6.25" y="1.75" width="5.5" height="9" rx="2.75"></rect><path d="M3.75 8.25a5.25 5.25 0 0 0 10.5 0M9 13.5V16"></path></svg>
+        <div class="icon-busy note-spin"></div>
+      </button>
+    </div>
+    <div class="note-top">
       <input id="title" value="Note" placeholder="Note title" aria-label="Title">
       <button id="close" type="button" aria-label="Close" title="Close">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -228,18 +216,18 @@
           <line x1="13" y1="3" x2="3" y2="13"></line>
         </svg>
       </button>
-    </header>
-    <textarea id="body" placeholder="Write or dictate a note..."></textarea>
-    <footer>
-      <button id="voice" class="note-voice-btn idle" type="button" title="Click to listen again" aria-label="Voice note">
-        <svg class="icon-active" width="22" height="22" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.1" stroke="#000000" stroke-width="1.8"></circle><circle cx="8" cy="8" r="2.7" fill="#000000"></circle></svg>
-        <svg class="icon-idle" width="20" height="20" viewBox="0 0 18 18" fill="none" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6.25" y="1.75" width="5.5" height="9" rx="2.75"></rect><path d="M3.75 8.25a5.25 5.25 0 0 0 10.5 0M9 13.5V16"></path></svg>
-        <div class="icon-busy note-spin"></div>
-      </button>
-      <div class="sparkle-host"></div>
-      <button id="copy" type="button">Copy</button>
-      <button id="save" type="button">Save</button>
-    </footer>
+    </div>
+    <div class="note-main">
+      <div class="note-write">
+        <textarea id="body" placeholder="Write or dictate a note..."></textarea>
+      </div>
+      <div class="note-foot">
+        <button id="copy" type="button">Copy</button>
+        <button id="save" type="button">Save</button>
+      </div>
+      <div class="sparkle-dock" data-sparkle-dock></div>
+    </div>
+    <div class="note-lip"></div>
   </div>
   <script src="sparkle-client.js"></script>
   <script>

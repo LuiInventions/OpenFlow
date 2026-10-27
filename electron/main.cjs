@@ -274,12 +274,12 @@ function getNoteBounds() {
     const area = display ? display.workArea : { x: 0, y: 0, width: 1920, height: 1080 };
     return {
       x: Math.round(area.x + (area.width - 480) / 2),
-      y: Math.round(area.y + area.height - 540 - 88),
+      y: Math.round(area.y + area.height - 450 - 88),
       width: 480,
-      height: 540,
+      height: 450,
     };
   } catch (_e) {
-    return { x: 100, y: 100, width: 480, height: 540 };
+    return { x: 100, y: 100, width: 480, height: 450 };
   }
 }
 

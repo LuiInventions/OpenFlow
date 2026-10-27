@@ -24,6 +24,8 @@ public static class OpenFlowChord {
   private static bool mod2;
   private static bool active;
   private static bool ateMod2;
+  private static uint ctrlTime;
+  private static uint modTime;
 
   private delegate IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam);
 
@@ -145,12 +147,22 @@ public static class OpenFlowChord {
   }
 
   private static bool IsCtrl(uint vk) { return vk == 0x11 || vk == 0xA2 || vk == 0xA3; }
+  private static bool IsCtrlScan(KBDLLHOOKSTRUCT info) { return (info.scanCode & 0xFF) == 0x1D; }
   private static bool IsMod2(uint vk) {
     string mode = chordMode;
     if (mode == "space") return vk == 0x20;
     if (mode == "alt") return vk == 0x12 || vk == 0xA4 || vk == 0xA5;
     if (mode == "shift") return vk == 0x10 || vk == 0xA0 || vk == 0xA1;
     return vk == 0x5B || vk == 0x5C;
+  }
+  private static bool Held(int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; }
+  private static bool CtrlHeld() { return Held(0x11) || Held(0xA2) || Held(0xA3); }
+  private static bool Mod2Held() {
+    string mode = chordMode;
+    if (mode == "space") return Held(0x20);
+    if (mode == "alt") return Held(0x12) || Held(0xA4) || Held(0xA5);
+    if (mode == "shift") return Held(0x10) || Held(0xA0) || Held(0xA1);
+    return Held(0x5B) || Held(0x5C);
   }
 
   private static void SetChordMode(string raw) {
@@ -163,6 +175,8 @@ public static class OpenFlowChord {
     mod2 = false;
     active = false;
     ateMod2 = false;
+    ctrlTime = 0;
+    modTime = 0;
   }
 
   private static void Emit(string line) {
@@ -178,22 +192,35 @@ public static class OpenFlowChord {
       bool down = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
       bool up = message == WM_KEYUP || message == WM_SYSKEYUP;
       bool swallow = false;
+      bool ctrlKey = IsCtrl(info.vkCode) || IsCtrlScan(info);
+      bool modKey = IsMod2(info.vkCode) && !ctrlKey;
       if (down) {
-        if (IsCtrl(info.vkCode)) ctrl = true;
-        if (IsMod2(info.vkCode)) mod2 = true;
-        if (ctrl && mod2 && !active) {
+        if (ctrlKey) {
+          ctrl = true;
+          ctrlTime = info.time;
+          mod2 = Mod2Held();
+        }
+        if (modKey) {
+          mod2 = true;
+          modTime = info.time;
+          ctrl = CtrlHeld();
+        }
+        bool both = ctrl && mod2 && ctrlTime != 0 && modTime != 0 && ctrlTime != modTime;
+        if (both && !active) {
           active = true;
           ateMod2 = true;
           Emit("dictate-down " + GetForegroundWindow().ToInt64());
         }
-        if (active && (IsCtrl(info.vkCode) || IsMod2(info.vkCode))) swallow = true;
+        if (active && (ctrlKey || modKey)) swallow = true;
       } else if (up) {
-        if (IsCtrl(info.vkCode)) ctrl = false;
-        if (IsMod2(info.vkCode)) mod2 = false;
-        if (IsMod2(info.vkCode) && ateMod2) {
+        if (ctrlKey) ctrl = false;
+        if (modKey) mod2 = false;
+        if (modKey && ateMod2) {
           swallow = true;
           ateMod2 = false;
         }
+        if (!ctrlKey) ctrl = ctrl && CtrlHeld();
+        if (!modKey) mod2 = mod2 && Mod2Held();
         if (active && !(ctrl && mod2)) {
           active = false;
           Emit("dictate-up");
