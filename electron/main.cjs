@@ -506,15 +506,51 @@ function closeNoteHistory() {
   return { open: false };
 }
 
-function openNoteHistory(payload) {
+function historyAnchor(payload, event) {
+  const sender = senderWindow(event);
+  const given = (payload && payload.anchor) || {};
+  const gx = Number(given.x);
+  const gy = Number(given.y);
+  if (sender && !sender.isDestroyed()) {
+    const bounds = sender.getBounds();
+    const inside = Number.isFinite(gx) && Number.isFinite(gy)
+      && gx >= bounds.x - 24 && gx <= bounds.x + bounds.width + 24
+      && gy >= bounds.y - 24 && gy <= bounds.y + bounds.height + 24;
+    if (inside) {
+      return {
+        x: gx,
+        y: gy,
+        width: Math.round(Number(given.width) || bounds.width),
+        height: Math.round(Number(given.height) || bounds.height),
+      };
+    }
+    return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
+  }
+  return {
+    x: Number.isFinite(gx) ? gx : 0,
+    y: Number.isFinite(gy) ? gy : 0,
+    width: Math.round(Number(given.width) || 480),
+    height: Math.round(Number(given.height) || 520),
+  };
+}
+
+function raiseHistory(win) {
+  if (!win || win.isDestroyed()) return;
+  try { win.setAlwaysOnTop(true, "pop-up-menu"); } catch (_error) {}
+  win.show();
+  win.moveTop();
+  win.focus();
+}
+
+async function openNoteHistory(payload, event) {
   const id = String((payload && payload.id) || "");
   if (!id) return { open: false };
-  if (noteHistoryWindow && !noteHistoryWindow.isDestroyed() && noteHistoryWindow.isVisible() && noteHistoryNoteId === id) {
+  if (noteHistoryWindow && !noteHistoryWindow.isDestroyed() && noteHistoryNoteId === id && noteHistoryWindow.isVisible() && noteHistoryWindow.isFocused()) {
     return closeNoteHistory();
   }
-  const bounds = placeNoteHistory((payload && payload.anchor) || {});
+  const bounds = placeNoteHistory(historyAnchor(payload, event));
   if (!noteHistoryWindow || noteHistoryWindow.isDestroyed()) {
-    noteHistoryWindow = new BrowserWindow({
+    const win = new BrowserWindow({
       ...bounds,
       show: false,
       frame: false,
@@ -536,25 +572,23 @@ function openNoteHistory(payload) {
         sandbox: true,
       },
     });
-    noteHistoryWindow.on("closed", () => {
-      noteHistoryWindow = null;
+    noteHistoryWindow = win;
+    win.on("closed", () => {
+      if (noteHistoryWindow === win) noteHistoryWindow = null;
       noteHistoryNoteId = "";
     });
-    noteHistoryWindow.loadFile(path.join(root, "renderer", "note-history.html"));
+    const loaded = new Promise((resolve) => {
+      win.webContents.once("did-finish-load", resolve);
+    });
+    win.loadFile(path.join(root, "renderer", "note-history.html"));
+    await loaded;
+    if (!noteHistoryWindow || noteHistoryWindow.isDestroyed() || noteHistoryWindow !== win) return { open: false };
   } else {
     noteHistoryWindow.setBounds(bounds);
   }
   noteHistoryNoteId = id;
   deliverHistory(id);
-  const win = noteHistoryWindow;
-  const reveal = () => {
-    if (!win || win.isDestroyed()) return;
-    win.show();
-    win.moveTop();
-    win.focus();
-  };
-  if (win.webContents.isLoading()) win.webContents.once("did-finish-load", reveal);
-  else reveal();
+  raiseHistory(noteHistoryWindow);
   return { open: true };
 }
 
@@ -1678,7 +1712,7 @@ const actions = {
     }
     return true;
   },
-  "notes.sparkle.history.open": (payload) => openNoteHistory(payload || {}),
+  "notes.sparkle.history.open": (payload, event) => openNoteHistory(payload || {}, event),
   "notes.sparkle.history.close": () => closeNoteHistory(),
   "desk.pending": () => {
     const value = pendingRefresh;

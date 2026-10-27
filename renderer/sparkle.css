@@ -446,8 +446,19 @@
   border-radius: 8px;
 }
 
+.note-md strong,
+.note-md b {
+  font-weight: 700;
+}
+
+.note-md em,
+.note-md i {
+  font-style: italic;
+}
+
 .note-md u {
   text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .note-md p,
@@ -767,8 +778,9 @@
 
 .note-write > textarea,
 #editor.note-shell #editor-body {
-  position: relative;
-  z-index: 3;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
   flex: 1 1 auto;
   width: 100%;
   height: 100%;
@@ -778,7 +790,9 @@
   outline: none;
   background: transparent;
   color: transparent;
-  caret-color: #1a1a1a;
+  caret-color: transparent;
+  pointer-events: none;
+  opacity: 0;
   font-size: 13px;
   line-height: 1.5;
   padding: 12px 14px;
@@ -813,8 +827,13 @@
 }
 
 .note-write > .note-md {
-  z-index: 1;
-  pointer-events: none;
+  z-index: 3;
+  pointer-events: auto;
+  background: transparent;
+  caret-color: #1a1a1a;
+  outline: none;
+  white-space: pre-wrap;
+  overflow: auto;
 }
 
 .note-foot {
@@ -980,53 +999,36 @@
   max-width: 128px;
   height: 24px;
   padding: 0 14px;
-  border: 1px solid transparent;
+  box-sizing: border-box;
+  border: 2px solid #1a1a1a;
   border-radius: 999px;
-  background: #f3eeff;
-  color: #5b3cc4;
+  background: #ffffff;
+  color: #1a1a1a;
   font-size: 12px;
   font-weight: 600;
-  line-height: 22px;
+  line-height: 20px;
   white-space: nowrap;
   overflow: hidden;
 }
 
-.sparkle-dock .sparkle-chips .sparkle-chip:nth-child(1):not(.is-skeleton) {
-  background: #f3eeff;
-  border-color: #ddd0fb;
-  color: #5b3cc4;
+.sparkle-dock .sparkle-chips .sparkle-chip:not(.is-skeleton):hover {
+  background: #f5f4f0;
 }
 
-.sparkle-dock .sparkle-chips .sparkle-chip:nth-child(2):not(.is-skeleton) {
-  background: #e7f1ff;
-  border-color: #cfe2fb;
-  color: #1d5fb8;
-}
-
-.sparkle-dock .sparkle-chips .sparkle-chip:nth-child(3):not(.is-skeleton) {
-  background: #e5f8f0;
-  border-color: #c5eadc;
-  color: #0d7a52;
-}
-
-.sparkle-dock .sparkle-chips .sparkle-chip:nth-child(1):not(.is-skeleton):hover {
-  background: #e9e0ff;
-}
-
-.sparkle-dock .sparkle-chips .sparkle-chip:nth-child(2):not(.is-skeleton):hover {
-  background: #d9e8ff;
-}
-
-.sparkle-dock .sparkle-chips .sparkle-chip:nth-child(3):not(.is-skeleton):hover {
-  background: #d4f3e6;
+.sparkle-dock .sparkle-chips .sparkle-chip.is-skeleton {
+  border-color: transparent;
+  color: transparent;
 }
 
 .sparkle-history {
+  position: relative;
+  z-index: 2;
   flex: 0 0 auto;
   margin-left: auto;
   border: 0;
   background: transparent;
   color: #8a877f;
+  pointer-events: auto;
   padding: 0;
   height: 20px;
   font-size: 12px;
@@ -1406,7 +1408,8 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 48px;
+  bottom: 4px;
+  align-items: center;
   z-index: 6;
   display: flex;
   justify-content: center;

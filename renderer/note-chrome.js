@@ -73,8 +73,88 @@
     }).join("\n");
   }
 
+  function richView(textarea) {
+    const parent = textarea && textarea.parentElement;
+    if (!parent) return null;
+    return parent.querySelector(":scope > .note-md");
+  }
+
+  function applyRichFormat(textarea, kind) {
+    const view = richView(textarea);
+    const command = kind === "bold" ? "bold" : kind === "italic" ? "italic" : kind === "underline" ? "underline" : "";
+    if (!view || !command) return;
+    const sel = window.getSelection && window.getSelection();
+    const saved = sel && sel.rangeCount && (view === sel.anchorNode || view.contains(sel.anchorNode))
+      ? sel.getRangeAt(0).cloneRange()
+      : null;
+    if (view.focus) view.focus({ preventScroll: true });
+    const next = window.getSelection && window.getSelection();
+    if (next) {
+      next.removeAllRanges();
+      if (saved) next.addRange(saved);
+      else {
+        const range = document.createRange();
+        range.selectNodeContents(view);
+        range.collapse(false);
+        next.addRange(range);
+      }
+    }
+    const tag = kind === "bold" ? "strong" : kind === "italic" ? "em" : "u";
+    let applied = false;
+    try {
+      document.execCommand("styleWithCSS", false, false);
+      applied = document.execCommand(command, false, null);
+    } catch (_error) {
+      applied = false;
+    }
+    if (!applied) wrapSelection(view, tag);
+    view.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function wrapSelection(view, tag) {
+    const sel = window.getSelection && window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    const host = range.commonAncestorContainer;
+    const inside = host === view || view.contains(host);
+    if (!inside) return;
+    const parent = host.nodeType === 1 ? host : host.parentElement;
+    const existing = parent && parent.closest ? parent.closest(tag) : null;
+    if (existing && view.contains(existing)) {
+      const holder = existing.parentNode;
+      while (existing.firstChild) holder.insertBefore(existing.firstChild, existing);
+      holder.removeChild(existing);
+      return;
+    }
+    const el = document.createElement(tag);
+    if (range.collapsed) {
+      el.appendChild(document.createTextNode("\u200b"));
+      range.insertNode(el);
+      const caret = document.createRange();
+      caret.setStart(el.firstChild, 1);
+      caret.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(caret);
+      return;
+    }
+    try {
+      range.surroundContents(el);
+    } catch (_error) {
+      el.appendChild(range.extractContents());
+      range.insertNode(el);
+    }
+    sel.removeAllRanges();
+    const nextRange = document.createRange();
+    nextRange.selectNodeContents(el);
+    sel.addRange(nextRange);
+  }
+
   function applyFormat(textarea, kind) {
     if (!textarea) return;
+    if (kind === "bold" || kind === "italic" || kind === "underline") {
+      applyRichFormat(textarea, kind);
+      return;
+    }
     const value = String(textarea.value || "");
     let start = textarea.selectionStart || 0;
     let end = textarea.selectionEnd || 0;
@@ -155,9 +235,16 @@
       textarea.setAttribute("spellcheck", "false");
       textarea.setAttribute("autocorrect", "off");
       textarea.setAttribute("autocapitalize", "off");
-      textarea.addEventListener("focus", () => {
-        if (textarea.parentElement) textarea.parentElement.classList.add("is-armed");
-      });
+    }
+
+    function onFocusIn(event) {
+      const write = textarea && textarea.parentElement;
+      if (!write || !event.target || !event.target.closest) return;
+      if (event.target === write || event.target.closest(".note-write") === write) write.classList.add("is-armed");
+    }
+
+    function onMouseDown(event) {
+      if (event.target.closest && event.target.closest("[data-format]")) event.preventDefault();
     }
     let formatOpen = false;
 
@@ -254,8 +341,10 @@
     }
 
     shell.addEventListener("click", onClick);
+    shell.addEventListener("mousedown", onMouseDown);
     shell.addEventListener("input", onSearch);
     shell.addEventListener("keydown", onKeydown);
+    shell.addEventListener("focusin", onFocusIn);
     shell.addEventListener("openflow-sparkle-open", onSparkleOpen);
     syncCollapse();
     if (shell.classList.contains("is-expanded")) refresh();
@@ -272,8 +361,10 @@
       refresh,
       destroy() {
         shell.removeEventListener("click", onClick);
+        shell.removeEventListener("mousedown", onMouseDown);
         shell.removeEventListener("input", onSearch);
         shell.removeEventListener("keydown", onKeydown);
+        shell.removeEventListener("focusin", onFocusIn);
         shell.removeEventListener("openflow-sparkle-open", onSparkleOpen);
         delete shell.dataset.chrome;
         shell._chromeApi = null;

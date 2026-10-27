@@ -43,9 +43,112 @@
     });
     html = html.replace(/&lt;u&gt;([\s\S]+?)&lt;\/u&gt;/g, "<u>$1</u>");
     html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+    html = html.replace(/\*\*\*([^*]+)\*\*\*/g, "<strong><em>$1</em></strong>");
     html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     html = html.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
     return html;
+  }
+
+  function cleanInline(value) {
+    return String(value || "").replace(/\u200b/g, "").replace(/\u00a0/g, " ");
+  }
+
+  function serializeInline(node) {
+    let out = "";
+    node.childNodes.forEach((child) => {
+      if (child.nodeType === 3) {
+        out += cleanInline(child.textContent);
+        return;
+      }
+      if (child.nodeType !== 1) return;
+      const name = child.nodeName;
+      if (name === "BR") {
+        out += "\n";
+        return;
+      }
+      const inner = serializeInline(child);
+      if (name === "STRONG" || name === "B") {
+        const text = cleanInline(inner);
+        if (text) out += `**${text}**`;
+      } else if (name === "EM" || name === "I") {
+        const text = cleanInline(inner);
+        if (text) out += `*${text}*`;
+      } else if (name === "U") {
+        const text = cleanInline(inner);
+        if (text) out += `<u>${text}</u>`;
+      } else if (name === "CODE") {
+        const text = cleanInline(child.textContent);
+        if (text) out += `\`${text}\``;
+      } else if (name === "A") {
+        const text = cleanInline(inner);
+        const href = child.getAttribute("href") || "";
+        if (text) out += `[${text}](${href})`;
+      } else if (name === "SPAN") {
+        const style = child.getAttribute("style") || "";
+        let text = inner;
+        if (/text-decoration:[^;]*underline/i.test(style)) {
+          const clean = cleanInline(text);
+          text = clean ? `<u>${clean}</u>` : "";
+        }
+        if (/font-style:\s*italic/i.test(style)) {
+          const clean = cleanInline(text);
+          text = clean ? `*${clean}*` : "";
+        }
+        if (/font-weight:\s*(bold|[6-9]00)/i.test(style)) {
+          const clean = cleanInline(text);
+          text = clean ? `**${clean}**` : "";
+        }
+        out += text;
+      } else {
+        out += inner;
+      }
+    });
+    return out;
+  }
+
+  function serializeBlocks(node) {
+    const lines = [];
+    function pushBlock(text) {
+      lines.push(cleanInline(text).replace(/\n+$/g, ""));
+    }
+    function walk(current) {
+      Array.from(current.childNodes).forEach((child) => {
+        if (child.nodeType === 3) {
+          const text = cleanInline(child.textContent);
+          if (text.trim()) pushBlock(text);
+          return;
+        }
+        if (child.nodeType !== 1) return;
+        const name = child.nodeName;
+        if (name === "H1") pushBlock(`# ${serializeInline(child)}`);
+        else if (name === "H2") pushBlock(`## ${serializeInline(child)}`);
+        else if (name === "H3") pushBlock(`### ${serializeInline(child)}`);
+        else if (name === "BLOCKQUOTE") pushBlock(`> ${serializeInline(child)}`);
+        else if (name === "HR") pushBlock("---");
+        else if (name === "UL" || name === "OL") {
+          Array.from(child.children).forEach((item, index) => {
+            let body = serializeInline(item).trim();
+            let prefix = name === "OL" ? `${index + 1}. ` : "- ";
+            if (body.startsWith("☐")) {
+              prefix = "- [ ] ";
+              body = body.replace(/^☐\s*/, "");
+            } else if (body.startsWith("☑")) {
+              prefix = "- [x] ";
+              body = body.replace(/^☑\s*/, "");
+            }
+            pushBlock(prefix + body);
+          });
+        } else if (name === "P" || name === "DIV") {
+          const image = child.querySelector("img");
+          if (image && child.children.length === 1 && !serializeInline(child).trim()) {
+            pushBlock(`![${image.getAttribute("alt") || ""}](${image.getAttribute("src") || ""})`);
+          } else pushBlock(serializeInline(child));
+        } else if (name === "BR") pushBlock("");
+        else walk(child);
+      });
+    }
+    walk(node);
+    return lines.join("\n").replace(/\n{3,}/g, "\n\n").replace(/^\n+|\n+$/g, "");
   }
 
   function renderMarkdown(source) {
@@ -76,7 +179,7 @@
         out.push(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`);
         continue;
       }
-      if (/^(-{3,}|\*{3,})$/.test(trimmed)) {
+      if (/^(-{3,}|\*{3}|_{3,})$/.test(trimmed)) {
         closeList();
         out.push("<hr>");
         continue;
@@ -129,14 +232,40 @@
     return parent.querySelector(":scope > .note-md");
   }
 
-  function paintMarkdown(textarea) {
+  function placeCaretEnd(view) {
+    const sel = window.getSelection();
+    if (!sel || !view) return;
+    const range = document.createRange();
+    range.selectNodeContents(view);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function prepareRich(view, editable) {
+    view.setAttribute("contenteditable", editable ? "true" : "false");
+    view.setAttribute("spellcheck", "false");
+    view.setAttribute("autocorrect", "off");
+    view.setAttribute("autocapitalize", "off");
+    view.setAttribute("role", "textbox");
+    view.setAttribute("aria-multiline", "true");
+    if (!view.getAttribute("aria-label")) view.setAttribute("aria-label", "Note");
+  }
+
+  function paintMarkdown(textarea, mode) {
     const view = markdownView(textarea);
     if (!view || !textarea) return;
     const text = String(textarea.value || "");
-    const show = Boolean(text.trim()) && !textarea.classList.contains("is-shimmer");
-    view.hidden = !show;
-    view.innerHTML = show ? renderMarkdown(text) : "";
+    const shimmer = textarea.classList.contains("is-shimmer");
+    const focused = view === document.activeElement || view.contains(document.activeElement);
+    view.hidden = shimmer;
+    if (!shimmer) view.innerHTML = text.trim() ? renderMarkdown(text) : "";
+    prepareRich(view, !shimmer);
     if (textarea.parentElement) textarea.parentElement.classList.toggle("is-empty", !text);
+    if (focused && mode === "end") {
+      view.focus({ preventScroll: true });
+      placeCaretEnd(view);
+    }
   }
 
   function attach(options) {
@@ -522,11 +651,17 @@
         return;
       }
       if (target.hasAttribute("data-sparkle-history")) {
-        const note = options.getNote();
-        if (!note.id) return;
+        openHistory().catch(() => {});
+      }
+    }
+
+    async function openHistory() {
+      historyPending = true;
+      try {
+        const note = await ensureId();
+        if (!note || !note.id || !root) return;
         const rect = root.getBoundingClientRect();
-        historyPending = true;
-        dispatch("notes.sparkle.history.open", {
+        const result = await dispatch("notes.sparkle.history.open", {
           id: note.id,
           anchor: {
             x: Math.round(window.screenX + rect.left),
@@ -534,13 +669,23 @@
             width: Math.round(rect.width),
             height: Math.round(rect.height),
           },
-        }).then((result) => {
-          historyPending = false;
-          historyOpen = Boolean(result && result.open);
-        }).catch(() => {
-          historyPending = false;
         });
+        historyOpen = Boolean(result && result.open);
+      } finally {
+        historyPending = false;
       }
+    }
+
+    function writeSource(md) {
+      if (textarea.parentElement) textarea.parentElement.classList.toggle("is-empty", !md);
+      if (textarea.value === md) return;
+      textarea.value = md;
+      textarea.dispatchEvent(new CustomEvent("input", { bubbles: true, detail: { rich: true } }));
+    }
+
+    function onRichInput() {
+      const md = cleanInline(markdown.textContent).trim() ? serializeBlocks(markdown) : "";
+      writeSource(md);
     }
 
     function onInput(event) {
@@ -551,7 +696,7 @@
       if (event.target === textarea && !applying) {
         undoTyped = true;
         schedule();
-        paintMarkdown(textarea);
+        if (!(event.detail && event.detail.rich)) paintMarkdown(textarea, "end");
       }
     }
 
@@ -581,18 +726,48 @@
       }
     }
 
-    markdown.addEventListener("copy", (event) => {
-      const source = String(textarea.value || "");
+    function onRichCopy(event) {
+      if (!event.clipboardData) return;
+      const sel = window.getSelection();
+      let md = String(textarea.value || "");
+      if (sel && sel.rangeCount && !sel.isCollapsed && (markdown === sel.anchorNode || markdown.contains(sel.anchorNode))) {
+        const holder = document.createElement("div");
+        holder.appendChild(sel.getRangeAt(0).cloneContents());
+        md = serializeBlocks(holder);
+      }
+      event.preventDefault();
+      event.clipboardData.setData("text/plain", md);
+    }
+
+    function onRichPaste(event) {
       if (!event.clipboardData) return;
       event.preventDefault();
-      event.clipboardData.setData("text/plain", source);
-    });
-    textarea.addEventListener("blur", () => {
-      paintMarkdown(textarea);
-    });
-    textarea.addEventListener("scroll", () => {
-      markdown.scrollTop = textarea.scrollTop;
-    });
+      const text = event.clipboardData.getData("text/plain");
+      if (!text) return;
+      document.execCommand("insertText", false, text);
+      onRichInput();
+      if (/[*_<>`]|(^|\n)\s*(#{1,3}\s|[-*]\s|\d+\.\s|>\s)/.test(text)) paintMarkdown(textarea, "end");
+    }
+
+    function onTextareaFocus() {
+      if (markdown.getAttribute("contenteditable") === "true") markdown.focus({ preventScroll: true });
+    }
+
+    textarea.tabIndex = -1;
+    textarea.setAttribute("aria-hidden", "true");
+    function onRichKeydown(event) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && undoArmed && !undoTyped) {
+        event.preventDefault();
+        undo().catch(() => {});
+      }
+    }
+
+    markdown.addEventListener("copy", onRichCopy);
+    markdown.addEventListener("paste", onRichPaste);
+    markdown.addEventListener("input", onRichInput);
+    markdown.addEventListener("keydown", onRichKeydown);
+    markdown.addEventListener("blur", () => paintMarkdown(textarea));
+    textarea.addEventListener("focus", onTextareaFocus);
     const surfaces = dock ? [host, dock] : [host];
     surfaces.forEach((node) => {
       node.addEventListener("click", onClick);
@@ -621,6 +796,11 @@
         });
         textarea.removeEventListener("input", onInput);
         textarea.removeEventListener("keydown", onKeydown);
+        textarea.removeEventListener("focus", onTextareaFocus);
+        markdown.removeEventListener("copy", onRichCopy);
+        markdown.removeEventListener("paste", onRichPaste);
+        markdown.removeEventListener("input", onRichInput);
+        markdown.removeEventListener("keydown", onRichKeydown);
         toast.removeEventListener("click", onToastClick);
         hideToast();
         markdown.remove();
@@ -642,7 +822,7 @@
     attach,
     sync(textarea, opts) {
       if (opts && opts.reveal) editingNotes.delete(textarea);
-      paintMarkdown(textarea);
+      paintMarkdown(textarea, "end");
     },
   };
 })();
