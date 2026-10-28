@@ -46,11 +46,13 @@ The new **Commands** tab lets you create, search and manage your own Windows scr
 
 ## New: Note Improvement — Improve with AI
 
+Open **Improve** in a note. Pick **Polish**, **Shorten**, or **As a list**, or type a follow-up of up to ten words.
+
 <p align="center">
-  <img src="docs/note-improvement.png" alt="OpenFlow Note Improvement: the full note open, with Improve with AI suggestions under Copy and Save." width="100%">
+  <img src="docs/note-improvement.png" alt="The Note Improvement panel: Polish, Shorten, and As a list, with a follow-up field." width="560">
 </p>
 
-**Note Improvement** improves the note you already have open with AI. Open **Improve** in the note rail and the panel slides up from the bottom, with **Copy** and **Save** staying above it. Pick a short suggestion such as **Polish**, **Shorten**, or **As a list**, or type your own follow-up (up to ten words). While new suggestions are generated, each chip shows a small spinning circle. The note uses the same OpenAI API key as dictation and is sent only when you ask. The improved wording stays in the same note, and you can undo it.
+The panel slides up under **Copy** and **Save**. **Note Improvement** improves the note you already have open with AI. While new suggestions are generated, each chip shows a small spinning circle. The note uses the same OpenAI API key as dictation and is sent only when you ask. The improved wording stays in the same note, and you can undo it.
 
 ---
 
