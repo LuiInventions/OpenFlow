@@ -137,6 +137,8 @@ main {
 }
 
 .view-head {
+  position: relative;
+  z-index: 4;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -589,31 +591,68 @@ h1 {
   width: 100%;
 }
 
-.usage-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 3px;
-  border-radius: 999px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow-xs);
+.usage-menu {
+  position: relative;
   flex: 0 0 auto;
 }
 
-.usage-switch button {
-  border: 0;
-  background: transparent;
-  color: var(--muted);
+.usage-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px 0 12px;
   border-radius: 999px;
-  padding: 5px 10px;
-  font-size: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--fg);
+  font-size: 12.5px;
   font-weight: 600;
-  line-height: 1.2;
-  white-space: nowrap;
+  line-height: 1;
+  box-shadow: var(--shadow-xs);
 }
 
-.usage-switch button[aria-pressed="true"] {
+.usage-menu-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.usage-menu.is-open .usage-menu-btn svg {
+  transform: rotate(180deg);
+}
+
+.usage-menu-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 5;
+  min-width: 220px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 2px;
+}
+
+.usage-menu-list button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.usage-menu-list button:hover {
+  background: var(--bg);
+}
+
+.usage-menu-list button[aria-selected="true"] {
   background: var(--fg);
   color: #ffffff;
 }

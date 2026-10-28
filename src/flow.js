@@ -111,7 +111,8 @@ function roundMoney(value) {
   return Math.round(Number(value) * 1e6) / 1e6;
 }
 
-function usageReport(history, now = new Date(), pricePerMinute = TRANSCRIBE_USD_PER_MINUTE) {
+function buildUsageReport(history, now, options) {
+  const pricePerMinute = options.pricePerMinute;
   const today = startOfLocalDay(now);
   const start = new Date(today);
   start.setDate(start.getDate() - 29);
@@ -125,13 +126,13 @@ function usageReport(history, now = new Date(), pricePerMinute = TRANSCRIBE_USD_
     days.push({ date, words: 0, durationMs: 0, dictations: 0, costUsd: 0 });
   }
   for (const row of history || []) {
-    if (row && row.stt_engine === "parakeet") continue;
+    if (!options.include(row)) continue;
     const created = new Date(row && row.created_at);
     if (Number.isNaN(created.getTime())) continue;
     const slot = index.get(localDateKey(created));
     if (slot == null) continue;
-    const words = Number(row.word_count) || wordCount(row.edited_text || row.formatted_text || row.asr_text);
-    const durationMs = Math.max(0, Number(row.duration_ms) || 0);
+    const words = Number(row && row.word_count) || wordCount(row && (row.edited_text || row.formatted_text || row.asr_text));
+    const durationMs = Math.max(0, Number(row && row.duration_ms) || 0);
     days[slot].words += words;
     days[slot].durationMs += durationMs;
     days[slot].dictations += 1;
@@ -150,10 +151,26 @@ function usageReport(history, now = new Date(), pricePerMinute = TRANSCRIBE_USD_
     dictations: totals.dictations,
     costUsd: roundMoney(totals.costUsd),
     pricePerMinute,
-    model: "gpt-transcribe",
+    model: options.model,
     from: days[0].date,
     to: days[days.length - 1].date,
   };
+}
+
+function usageReport(history, now = new Date(), pricePerMinute = TRANSCRIBE_USD_PER_MINUTE) {
+  return buildUsageReport(history, now, {
+    include(row) { return !row || row.stt_engine !== "parakeet"; },
+    pricePerMinute,
+    model: "gpt-transcribe",
+  });
+}
+
+function localUsageReport(history, now = new Date()) {
+  return buildUsageReport(history, now, {
+    include(row) { return Boolean(row && row.stt_engine === "parakeet"); },
+    pricePerMinute: 0,
+    model: "parakeet",
+  });
 }
 
 // Standard OpenAI list prices, USD per 1M tokens, from the pricing page checked 2026-10-28.
@@ -345,6 +362,7 @@ module.exports = {
   prepareTranscript,
   computeStats,
   usageReport,
+  localUsageReport,
   TRANSCRIBE_USD_PER_MINUTE,
   estimateTokens,
   measureNoteChange,

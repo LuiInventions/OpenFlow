@@ -33,6 +33,7 @@ const state = {
   noteKeyTest: "",
   noteModelProgress: null,
   usageKind: "stt",
+  usageMenuOpen: false,
 };
 let loadGeneration = 0;
 let draggedElemId = null;
@@ -473,15 +474,30 @@ function notesHtml() {
   return `${searchHtml}${list}${fab}`;
 }
 
+function usageKind() {
+  if (state.usageKind === "local" || state.usageKind === "improve") return state.usageKind;
+  return "stt";
+}
+
 function paintUsageSwitch(head, show) {
   if (!head) return;
-  const existing = head.querySelector(".usage-switch");
+  const existing = head.querySelector(".usage-menu");
   if (!show) {
+    state.usageMenuOpen = false;
     if (existing) existing.remove();
     return;
   }
-  const kind = state.usageKind === "improve" ? "improve" : "stt";
-  const html = `<div class="usage-switch" role="group" aria-label="Usage source"><button type="button" data-usage-kind="stt" aria-pressed="${kind === "stt" ? "true" : "false"}">STT Usage</button><button type="button" data-usage-kind="improve" aria-pressed="${kind === "improve" ? "true" : "false"}">Note Improvement Usage</button></div>`;
+  const kind = usageKind();
+  const options = [
+    ["stt", "OpenAI STT"],
+    ["local", "Local Usage"],
+    ["improve", "Note Improvement Usage"],
+  ];
+  const current = options.find((option) => option[0] === kind)[1];
+  const open = Boolean(state.usageMenuOpen);
+  const chevron = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"></path></svg>';
+  const items = options.map(([id, label]) => `<button type="button" role="option" data-usage-kind="${id}" aria-selected="${kind === id ? "true" : "false"}">${label}</button>`).join("");
+  const html = `<div class="usage-menu${open ? " is-open" : ""}"><button type="button" class="usage-menu-btn" data-usage-menu aria-haspopup="listbox" aria-expanded="${open ? "true" : "false"}" aria-label="Usage source"><span>${current}</span>${chevron}</button><div class="usage-menu-list" role="listbox" aria-label="Usage source"${open ? "" : " hidden"}>${items}</div></div>`;
   if (existing) existing.outerHTML = html;
   else head.insertAdjacentHTML("beforeend", html);
 }
@@ -499,8 +515,18 @@ function usageBoard(statsHtml, bars, label, from, to) {
   return `<div class="usage-board"><div class="stats">${statsHtml}</div><div class="chart-card"><div class="chart" role="img" aria-label="${esc(label)}">${bars}</div><div class="axis"><span>${esc(dayLabel(from))}</span><span>${esc(dayLabel(to))}</span></div></div></div>`;
 }
 
+function sttUsageHtml(report, label) {
+  const source = report || { days: [], words: 0, durationMs: 0, costUsd: 0, from: "", to: "", dictations: 0 };
+  const days = source.days || [];
+  const basis = days.some((day) => day.durationMs > 0) ? "durationMs" : "words";
+  const bars = usageBars(days, basis, (day) => `${day.date}: ${day.words} words, ${day.dictations} dictations`);
+  const stats = `<article class="stat"><b>${minutes(source.durationMs)} min</b><span>Audio, ${source.dictations || 0} dictations</span></article><article class="stat"><b>${money(source.costUsd)}</b><span>Estimated API cost</span></article><article class="stat"><b>${new Intl.NumberFormat("en-US").format(source.words || 0)}</b><span>Spoken words</span></article>`;
+  return usageBoard(stats, bars, label, source.from, source.to);
+}
+
 function usageHtml() {
-  if (state.usageKind === "improve") {
+  const kind = usageKind();
+  if (kind === "improve") {
     const report = state.desk.improveUsage || { days: [], words: 0, tokens: 0, costUsd: 0, changes: 0, from: "", to: "" };
     const days = report.days || [];
     const basis = days.some((day) => day.words > 0) ? "words" : "tokens";
@@ -510,12 +536,8 @@ function usageHtml() {
     const stats = `<article class="stat"><b>${words}</b><span>Words, ${report.changes || 0} changes</span></article><article class="stat"><b>${money(report.costUsd)}</b><span>Estimated API cost</span></article><article class="stat"><b>${tokens}</b><span>Tokens</span></article>`;
     return usageBoard(stats, bars, "Note improvement over the last 30 days", report.from, report.to);
   }
-  const report = state.desk.usage || { days: [], words: 0, durationMs: 0, costUsd: 0, pricePerMinute: 0.0045, from: "", to: "", dictations: 0 };
-  const days = report.days || [];
-  const basis = days.some((day) => day.durationMs > 0) ? "durationMs" : "words";
-  const bars = usageBars(days, basis, (day) => `${day.date}: ${day.words} words, ${day.dictations} dictations`);
-  const stats = `<article class="stat"><b>${minutes(report.durationMs)} min</b><span>Audio, ${report.dictations || 0} dictations</span></article><article class="stat"><b>${money(report.costUsd)}</b><span>Estimated API cost</span></article><article class="stat"><b>${new Intl.NumberFormat("en-US").format(report.words || 0)}</b><span>Spoken words</span></article>`;
-  return usageBoard(stats, bars, "Usage over the last 30 days", report.from, report.to);
+  if (kind === "local") return sttUsageHtml(state.desk.localUsage, "Local usage over the last 30 days");
+  return sttUsageHtml(state.desk.usage, "Usage over the last 30 days");
 }
 
 function settingsHtml() {
@@ -1175,11 +1197,30 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   document.querySelector(".view-head").addEventListener("click", (event) => {
-    const button = event.target.closest("[data-usage-kind]");
-    if (!button) return;
-    const next = button.dataset.usageKind === "improve" ? "improve" : "stt";
-    if (state.usageKind === next) return;
-    state.usageKind = next;
+    const option = event.target.closest("[data-usage-kind]");
+    if (option) {
+      event.stopPropagation();
+      const next = option.dataset.usageKind;
+      state.usageKind = next === "local" || next === "improve" ? next : "stt";
+      state.usageMenuOpen = false;
+      render();
+      return;
+    }
+    const toggle = event.target.closest("[data-usage-menu]");
+    if (!toggle) return;
+    event.stopPropagation();
+    state.usageMenuOpen = !state.usageMenuOpen;
+    render();
+  });
+  document.querySelector(".view-head").addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !state.usageMenuOpen) return;
+    state.usageMenuOpen = false;
+    render();
+  });
+  document.addEventListener("click", (event) => {
+    if (!state.usageMenuOpen) return;
+    if (event.target.closest(".usage-menu")) return;
+    state.usageMenuOpen = false;
     render();
   });
 

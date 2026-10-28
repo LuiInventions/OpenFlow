@@ -50,7 +50,7 @@ The new **Commands** tab lets you create, search and manage your own Windows scr
   <img src="docs/note-improvement.png" alt="OpenFlow Note Improvement: the Improve panel open inside a note, with suggestion chips and a follow-up field." width="100%">
 </p>
 
-**Note Improvement** rewrites the note you already have open. Open **Improve** in the note rail and the panel slides up from the bottom, with **Copy** and **Save** staying above it. Pick a short suggestion such as **Polish**, **Shorten**, or **As a list**, or type your own follow-up (up to ten words). The note uses the same OpenAI API key as dictation and is sent only when you ask. The rewrite replaces the note text, and you can undo it.
+**Note Improvement** rewrites the note you already have open. Open **Improve** in the note rail and the panel slides up from the bottom, with **Copy** and **Save** staying above it. Pick a short suggestion such as **Polish**, **Shorten**, or **As a list**, or type your own follow-up (up to ten words). While new suggestions are generated, each chip shows a small spinning circle. The note uses the same OpenAI API key as dictation and is sent only when you ask. The rewrite replaces the note text, and you can undo it.
 
 ---
 
@@ -67,7 +67,7 @@ OpenFlow features a warm, distraction-free two-column layout (`820 × 540`) comb
 | **Dictation** | Displays your active dictation shortcut (`Ctrl` + `Win` by default, or `Ctrl` + `Space`, `Ctrl` + `Alt`, `Ctrl` + `Shift`), the latest transcription with a one-click **Copy** button, and your recent dictation history. |
 | **Notes** | Lists all saved notes vertically in proportional, rounded cards with a clean trash icon on the right (asking for confirmation before deleting). Clicking any note—or the floating round pen-and-paper compose button in the bottom right—opens the minimalist note-bubble card over the entire Notes area (editable note title on top, no tabs, max 1 note open, with **`Back`**, **`Copy`**, and **`Save`** actions). Unsaved notes are never persisted unless you explicitly click **`Save`**, which saves your changes and returns to the Notes list. |
 | **Commands** | Create, manage, and execute custom scripts (.bat, .ps1, .cmd). Includes a 3-step creation wizard (script type selection with branded logos, name validation, and 20-symbol icon picker), interactive circular icon badges with live symbol customization, search filter, standard non-elevated execution by default, and optional elevated execution (toggleable UAC Run as Administrator) directly from the floating desktop bubble or app. Seamlessly integrated into **Manage Elements** for custom bubble ordering. |
-| **Usage** | Summarizes the last 30 days. **STT Usage** shows recorded minutes, estimated API cost, and spoken words. **Note Improvement Usage** shows words rewritten, estimated API cost, and tokens. Both use the same three cards and bar chart, filled from dictations or from each saved note change. A switch at the top right moves between them. |
+| **Usage** | Summarizes the last 30 days in the same three cards and bar chart. A dropdown at the top right opens **OpenAI STT** (recorded minutes, estimated API cost, spoken words), **Local Usage** (the same figures for Parakeet on this PC, at no API cost), or **Note Improvement Usage** (words rewritten, estimated cost, and tokens). |
 | **Settings** | • **Speech-to-Text Engine**: Switch anytime between **Parakeet v3 (Open-Source, Local)** and **OpenAI API (`gpt-transcribe`)**, and manage your optional OpenAI API key. Right after installation, OpenFlow checks whether the **Parakeet v3** model is already installed—if not, it shows a dedicated **`Installing open-source STT model`** progress window in MB before launching the UI with the onboarding prompt.<br><br>• **Dictation**: Choose your global dictation shortcut between **`Ctrl + Win` (Default)**, **`Ctrl + Space`**, **`Ctrl + Alt`**, or **`Ctrl + Shift`**, and use the mode toggle switch to switch between **Hold Shortcut to Dictate** (hold to speak, release to finish) and **Press Once to Start / Second Time to Stop**.<br><br>• **Floating Bubble & Manage Elements**: Select bubble appearance (**Active**, **Grayed Out**, or **Hidden** with shortcut-only dictation) and customize your bubble icons (drag to reorder, click − to remove, add back). |
 
 ---
@@ -106,7 +106,7 @@ OpenFlow has **zero subscriptions or middleman fees**:
 
 Download the latest Windows installer from the [**Releases**](https://github.com/LuiInventions/OpenFlow/releases) page:
 
-- **`OpenFlow-Setup-1.5.12.exe`** — Lightweight Windows NSIS Web/Stub Installer (~1 MB download) with customizable install directory, Start Menu entry, and Desktop shortcut. Automatically fetches the application package from GitHub Releases during setup, checks whether **Parakeet v3** is already installed (skipping download if present, or showing a live MB progress bar), and then opens OpenFlow. Notes use a narrow left rail to collapse, search, open another note, improve, and format. The rail icons line up with the first line of the note. Search in Notes shows every saved note, and long titles wrap instead of being cut off. Note improvement slides up under Copy and Save. Usage switches between speech-to-text and note improvement.
+- **`OpenFlow-Setup-1.5.13.exe`** — Lightweight Windows NSIS Web/Stub Installer (~1 MB download) with customizable install directory, Start Menu entry, and Desktop shortcut. Automatically fetches the application package from GitHub Releases during setup, checks whether **Parakeet v3** is already installed (skipping download if present, or showing a live MB progress bar), and then opens OpenFlow. Notes use a narrow left rail to collapse, search, open another note, improve, and format. The rail icons line up with the first line of the note. Search in Notes shows every saved note, and long titles wrap instead of being cut off. Note improvement slides up under Copy and Save, and suggestions show a spinner while they generate. Usage has a dropdown for OpenAI STT, local Parakeet, and note improvement.
 
 Requirements: Windows 10 or Windows 11 (64-bit). An OpenAI API key is optional.
 
@@ -120,7 +120,7 @@ npm test
 npm run dist
 ```
 
-This builds the Windows NSIS Web Stub installer (`release/nsis-web/OpenFlow-Setup-1.5.12.exe`).
+This builds the Windows NSIS Web Stub installer (`release/nsis-web/OpenFlow-Setup-1.5.13.exe`).
 
 ---
 

@@ -322,6 +322,7 @@
     let applying = false;
     let timer = null;
     let toastTimer = null;
+    let suggestSerial = 0;
     let undoArmed = null;
     let undoTyped = false;
     let previewPayload = null;
@@ -381,12 +382,15 @@
     }
 
     function showChips(list, skeleton) {
+      if (skeleton) {
+        chips.setAttribute("aria-busy", "true");
+        chips.innerHTML = [0, 1, 2].map(() => '<span class="sparkle-chip is-loading" aria-hidden="true"><span class="sparkle-spin"></span></span>').join("");
+        return;
+      }
+      chips.removeAttribute("aria-busy");
       const fitted = Array.isArray(list) ? list.map(chipLabel).filter(Boolean) : [];
-      const items = skeleton ? ["···", "···", "···"] : (fitted.length === 3 ? fitted : FALLBACK);
-      chips.innerHTML = items.map((label) => {
-        if (skeleton) return '<span class="sparkle-chip is-skeleton" aria-hidden="true">····</span>';
-        return `<button type="button" class="sparkle-chip" data-sparkle-chip="${esc(label)}" ${busy ? "disabled" : ""}>${esc(label)}</button>`;
-      }).join("");
+      const items = fitted.length === 3 ? fitted : FALLBACK;
+      chips.innerHTML = items.map((label) => `<button type="button" class="sparkle-chip" data-sparkle-chip="${esc(label)}" ${busy ? "disabled" : ""}>${esc(label)}</button>`).join("");
     }
 
     function paintBusy() {
@@ -425,30 +429,31 @@
       }, withUndo ? 8000 : 5000);
     }
 
-    async function loadCached(generate) {
+    async function loadCached(generate, serial) {
+      const mine = serial == null ? ++suggestSerial : serial;
       const note = options.getNote();
       if (!note.content || wordCount(note.content) < MIN_WORDS) {
-        showChips(FALLBACK, false);
+        if (mine === suggestSerial) showChips(FALLBACK, false);
         return;
       }
+      const willGenerate = Boolean(generate && available() && settings().noteImproveAutoSuggestions !== false);
+      if (willGenerate && panelOpen && mine === suggestSerial) showChips(null, true);
       const cached = await dispatch("notes.sparkle.cached", { id: note.id, content: note.content });
-      if (closed) return;
+      if (closed || mine !== suggestSerial) return;
       const list = cached && cached.suggestions ? cached.suggestions : FALLBACK;
-      const waiting = generate && cached && !cached.fresh && available();
-      showChips(list, waiting && !(cached && cached.suggestions && cached.suggestions.length));
+      const waiting = willGenerate && cached && !cached.fresh;
       if (!waiting) {
         showChips(list, false);
         return;
       }
-      if (!cached.fallback) showChips(list, false);
-      else showChips(FALLBACK, true);
+      if (panelOpen) showChips(null, true);
       const result = await dispatch("notes.sparkle.suggest", {
         id: note.id,
         title: note.title,
         content: note.content,
         save: Boolean(note.id),
       });
-      if (closed) return;
+      if (closed || mine !== suggestSerial) return;
       showChips(result && result.suggestions ? result.suggestions : FALLBACK, false);
     }
 
@@ -476,12 +481,19 @@
       clearTimeout(timer);
       const current = settings();
       if (!available() || current.noteImproveAutoSuggestions === false) return;
+      const serial = ++suggestSerial;
+      const note = options.getNote();
+      const enough = Boolean(note && wordCount(note.content) >= MIN_WORDS);
+      if (panelOpen) showChips(null, enough);
+      if (!enough) return;
       timer = setTimeout(() => {
-        const note = options.getNote();
-        if (!note.id || wordCount(note.content) < MIN_WORDS) return;
-        dispatch("pads.save", { id: note.id, title: note.title || "Note", content: note.content })
-          .then(() => loadCached(true))
-          .catch(() => {});
+        if (serial !== suggestSerial) return;
+        const currentNote = options.getNote();
+        if (!currentNote || wordCount(currentNote.content) < MIN_WORDS) return;
+        const ready = currentNote.id
+          ? dispatch("pads.save", { id: currentNote.id, title: currentNote.title || "Note", content: currentNote.content })
+          : Promise.resolve();
+        ready.then(() => loadCached(true, serial)).catch(() => {});
       }, DEBOUNCE_MS);
     }
 

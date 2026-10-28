@@ -673,6 +673,7 @@
   .sparkle-btn .sparkle-icon,
   .sparkle-btn.is-busy .sparkle-icon,
   .sparkle-chip.is-skeleton,
+  .sparkle-spin,
   #editor-body.is-shimmer,
   #body.is-shimmer,
   .note-fog-btn,
@@ -1028,9 +1029,28 @@
   background: #f5f4f0;
 }
 
-.sparkle-dock .sparkle-chips .sparkle-chip.is-skeleton {
+.sparkle-dock .sparkle-chips .sparkle-chip.is-skeleton,
+.sparkle-dock .sparkle-chips .sparkle-chip.is-loading {
+  width: 28px;
+  min-width: 28px;
+  max-width: 28px;
+  padding: 0;
   border-color: transparent;
-  color: transparent;
+  background: transparent;
+  color: #1a1a1a;
+}
+
+.sparkle-spin {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(26, 26, 26, 0.18);
+  border-top-color: #1a1a1a;
+  animation: sparkle-spin 0.7s linear infinite;
+}
+
+@keyframes sparkle-spin {
+  to { transform: rotate(360deg); }
 }
 
 .sparkle-refresh {

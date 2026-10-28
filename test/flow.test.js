@@ -63,6 +63,21 @@ test("usageReport sums the last 30 local days from history", () => {
   assert.equal(report.days[0].words, 2);
   assert.equal(report.days[29].words, 10);
   assert.equal(report.days[29].costUsd, 0.0045);
+  const local = flow.localUsageReport([
+    { created_at: new Date(2026, 9, 22, 9, 0, 0).toISOString(), word_count: 10, duration_ms: 60000, formatted_text: "hallo welt", stt_engine: "openai" },
+    { created_at: new Date(2026, 9, 22, 10, 0, 0).toISOString(), word_count: 50, duration_ms: 120000, formatted_text: "lokal eins zwei", stt_engine: "parakeet" },
+    { created_at: new Date(2026, 8, 23, 12, 0, 0).toISOString(), word_count: 2, duration_ms: 30000 },
+    { created_at: new Date(2026, 8, 22, 12, 0, 0).toISOString(), word_count: 8, duration_ms: 10000, stt_engine: "parakeet" },
+  ], now);
+  assert.equal(local.days.length, 30);
+  assert.equal(local.model, "parakeet");
+  assert.equal(local.pricePerMinute, 0);
+  assert.equal(local.words, 50);
+  assert.equal(local.durationMs, 120000);
+  assert.equal(local.dictations, 1);
+  assert.equal(local.costUsd, 0);
+  assert.equal(local.days[29].words, 50);
+  assert.equal(local.days[0].words, 0);
 });
 
 test("noteImproveUsageReport prices saved note changes over 30 local days", () => {
