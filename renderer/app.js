@@ -16,6 +16,7 @@ const state = {
   commandWizard: null,
   iconPicker: null,
   commandSearch: "",
+  noteSearch: "",
   confirmDeleteId: null,
   confirmDeleteCommandId: null,
   confirmSttEngine: null,
@@ -367,6 +368,47 @@ function dictateHtml() {
 }
 
 
+function listSearchHtml(inputId, clearId, placeholder, value) {
+  const clear = value
+    ? `<button type="button" class="search-clear-btn" id="${clearId}" title="Clear search">✕</button>`
+    : "";
+  return `<div class="commands-search-bar"><div class="commands-search-input-wrap"><svg class="search-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="7" cy="7" r="4.5"></circle><path d="M10.5 10.5L14 14"></path></svg><input type="search" id="${inputId}" placeholder="${esc(placeholder)}" value="${esc(value || "")}" autocomplete="off" spellcheck="false">${clear}</div></div>`;
+}
+
+function inlineNotePreview(line) {
+  let text = String(line || "").trim();
+  if (!text || /^(-{3,}|\*{3,}|_{3,})$/.test(text) || /^```/.test(text)) return "";
+  text = text.replace(/^#{1,6}\s+/, "");
+  text = text.replace(/^>\s?/, "");
+  text = text.replace(/^[-*+]\s+\[[ xX]\]\s+/, "");
+  text = text.replace(/^[-*+]\s+/, "");
+  text = text.replace(/^\d+[.)]\s+/, "");
+  text = text.replace(/!\[[^\]]*\]\([^)]*\)/g, "");
+  text = text.replace(/\[img:[^\]]*\]/g, "");
+  text = text.trim();
+  if (!text) return "";
+  let html = esc(text);
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1");
+  html = html.replace(/&lt;u&gt;([\s\S]+?)&lt;\/u&gt;/g, "<u>$1</u>");
+  html = html.replace(/`([^`]+)`/g, "$1");
+  html = html.replace(/\*\*\*([^*]+)\*\*\*/g, "<strong><em>$1</em></strong>");
+  html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+  html = html.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  html = html.replace(/(^|[^_])_([^_\n]+)_/g, "$1<em>$2</em>");
+  const plain = html.replace(/<[^>]+>/g, "").trim();
+  return plain ? html : "";
+}
+
+function notePreviewHtml(content) {
+  const lines = String(content || "").replace(/\r\n/g, "\n").split("\n");
+  for (const line of lines) {
+    const html = inlineNotePreview(line);
+    if (html) return html;
+  }
+  return esc("Empty note — click to edit");
+}
+
 function commandsHtml() {
   const allCommands = (state.desk && state.desk.commands) || [];
   const query = (state.commandSearch || "").trim().toLowerCase();
@@ -374,7 +416,7 @@ function commandsHtml() {
     ? allCommands.filter((c) => (`${c.name} ${c.extension} ${c.content}`).toLowerCase().includes(query))
     : allCommands;
 
-  const searchHtml = `<div class="commands-search-bar"><div class="commands-search-input-wrap"><svg class="search-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="7" cy="7" r="4.5"></circle><path d="M10.5 10.5L14 14"></path></svg><input type="search" id="commands-search-input" placeholder="Search commands..." value="${esc(state.commandSearch || "")}" autocomplete="off" spellcheck="false">${state.commandSearch ? '<button type="button" class="search-clear-btn" id="commands-search-clear" title="Clear search">✕</button>' : ''}</div></div>`;
+  const searchHtml = listSearchHtml("commands-search-input", "commands-search-clear", "Search commands...", state.commandSearch || "");
 
   const fab = `<button type="button" class="notes-fab commands-fab" data-new-command aria-label="Erstellen" title="Erstellen"><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 3v10M3 8h10"></path></svg></button>`;
 
@@ -409,17 +451,22 @@ function commandsHtml() {
 }
 
 function notesHtml() {
-  const pads = [...(state.desk.pads || [])].reverse();
+  const allPads = [...(state.desk.pads || [])].reverse();
+  const query = (state.noteSearch || "").trim().toLowerCase();
+  const pads = query
+    ? allPads.filter((pad) => (`${pad.title || ""} ${pad.content || ""}`).toLowerCase().includes(query))
+    : allPads;
+  const searchHtml = listSearchHtml("notes-search-input", "notes-search-clear", "Search notes...", state.noteSearch || "");
   const penPaperSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>';
   const fab = `<button type="button" class="notes-fab" data-new-pad aria-label="New Note" title="New Note">${penPaperSvg}</button>`;
-  if (!pads.length) return `<p class="empty">No notes yet. Tap the button in the bottom right or dictate without a focused text field.</p>${fab}`;
+  if (!allPads.length) return `${searchHtml}<p class="empty">No notes yet. Tap the button in the bottom right or dictate without a focused text field.</p>${fab}`;
+  if (!pads.length) return `${searchHtml}<p class="empty">No notes match "${esc(state.noteSearch)}".</p>${fab}`;
   const trashSvg = '<svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 5h11M7 5V3.6c0-.6.5-1.1 1.1-1.1h1.8c.6 0 1.1.5 1.1 1.1V5M5.2 5l.6 9.4c.05.9.8 1.6 1.7 1.6h3c.9 0 1.65-.7 1.7-1.6L12.8 5M7.6 8.2v4.5M10.4 8.2v4.5"></path></svg>';
   const list = `<div class="notes-list" role="list">${pads.map((pad) => {
     const title = pad.title || "Note";
-    const preview = String(pad.content || "").trim().replace(/\s+/g, " ") || "Empty note — click to edit";
-    return `<div class="note-box" role="listitem"><button type="button" class="note-open-btn" data-pad-open="${esc(pad.id)}"><strong>${esc(title)}</strong><span>${esc(preview)}</span></button><button type="button" class="note-delete-btn" data-pad-delete="${esc(pad.id)}" title="Delete note" aria-label="Delete note">${trashSvg}</button></div>`;
+    return `<div class="note-box" role="listitem"><button type="button" class="note-open-btn" data-pad-open="${esc(pad.id)}"><strong>${esc(title)}</strong><span>${notePreviewHtml(pad.content)}</span></button><button type="button" class="note-delete-btn" data-pad-delete="${esc(pad.id)}" title="Delete note" aria-label="Delete note">${trashSvg}</button></div>`;
   }).join("")}</div>`;
-  return `${list}${fab}`;
+  return `${searchHtml}${list}${fab}`;
 }
 
 function usageHtml() {
@@ -1131,6 +1178,13 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    const clearNotes = event.target.closest("#notes-search-clear");
+    if (clearNotes) {
+      state.noteSearch = "";
+      render();
+      return;
+    }
+
     const iconBtn = event.target.closest("[data-command-icon-btn]");
     if (iconBtn) {
       const cmd = ((state.desk && state.desk.commands) || []).find((c) => c.id === iconBtn.dataset.commandIconBtn);
@@ -1421,12 +1475,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const viewElement = document.querySelector("#view");
   if (viewElement) {
     viewElement.addEventListener("input", (event) => {
-      if (event.target && event.target.id === "commands-search-input") {
-        state.commandSearch = event.target.value;
+      const notesSearch = event.target && event.target.id === "notes-search-input";
+      const commandsSearch = event.target && event.target.id === "commands-search-input";
+      if (notesSearch || commandsSearch) {
+        if (notesSearch) state.noteSearch = event.target.value;
+        else state.commandSearch = event.target.value;
         const viewEl = document.querySelector("#view");
-        if (viewEl && state.view === "commands") {
-          viewEl.innerHTML = commandsHtml();
-          const nextInput = viewEl.querySelector("#commands-search-input");
+        const active = notesSearch ? "notes" : "commands";
+        if (viewEl && state.view === active) {
+          viewEl.innerHTML = notesSearch ? notesHtml() : commandsHtml();
+          const nextInput = viewEl.querySelector(notesSearch ? "#notes-search-input" : "#commands-search-input");
           if (nextInput) {
             nextInput.focus();
             nextInput.selectionStart = nextInput.selectionEnd = nextInput.value.length;

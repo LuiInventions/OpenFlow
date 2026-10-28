@@ -14,10 +14,24 @@
       .replace(/"/g, "&quot;");
   }
 
+  const MAX_FOLLOWUP_WORDS = 10;
+
   function wordCount(text) {
     const trimmed = String(text || "").trim();
     if (!trimmed) return 0;
     return trimmed.split(/\s+/).length;
+  }
+
+  function clampFollowup(value) {
+    const text = String(value || "");
+    const re = /\S+/g;
+    let count = 0;
+    let match;
+    while ((match = re.exec(text))) {
+      count += 1;
+      if (count >= MAX_FOLLOWUP_WORDS) return text.slice(0, match.index + match[0].length);
+    }
+    return text;
   }
 
   function chipLabel(label) {
@@ -278,7 +292,7 @@
     host.dataset.mounted = "1";
     const SEND_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 12.5V3.5"></path><path d="M4.5 7 8 3.5 11.5 7"></path></svg>';
     host.innerHTML = `<button type="button" class="sparkle-btn" data-sparkle-toggle aria-expanded="false" title="Improve" aria-label="Improve"><span class="sparkle-glyph">${ICON}</span><span class="sparkle-label">Improve</span></button>`;
-    const panelMarkup = `<div class="sparkle-panel" data-sparkle-panel aria-hidden="true"><div class="sparkle-chips-row"><div class="sparkle-chips" data-sparkle-chips></div><button type="button" class="sparkle-history" data-sparkle-history>History</button></div><div class="sparkle-field"><input class="sparkle-text" data-sparkle-input placeholder="Follow up or ask a question" aria-label="Follow up or ask a question"><span class="sparkle-enter">Press Enter or</span><button type="button" class="sparkle-send" data-sparkle-send aria-label="Send" title="Send">${SEND_ICON}</button></div><p class="sparkle-hint" data-sparkle-limit hidden>At most 6 words.</p><div class="sparkle-privacy" data-sparkle-privacy hidden><p>This note is sent to OpenAI.</p><div class="sparkle-actions"><button type="button" class="sparkle-chip" data-sparkle-ack>Continue</button></div></div><div class="sparkle-preview" data-sparkle-preview hidden><p data-sparkle-preview-text></p><div class="sparkle-actions"><button type="button" class="sparkle-chip" data-sparkle-accept>Use it anyway</button><button type="button" class="sparkle-ghost" data-sparkle-reject>Discard</button></div></div></div>`;
+    const panelMarkup = `<div class="sparkle-panel" data-sparkle-panel aria-hidden="true"><div class="sparkle-chips-row"><div class="sparkle-chips" data-sparkle-chips></div></div><div class="sparkle-field"><input class="sparkle-text" data-sparkle-input placeholder="Follow up or ask a question" aria-label="Follow up or ask a question"><span class="sparkle-enter">Press Enter or</span><button type="button" class="sparkle-send" data-sparkle-send aria-label="Send" title="Send">${SEND_ICON}</button></div><div class="sparkle-privacy" data-sparkle-privacy hidden><p>This note is sent to OpenAI.</p><div class="sparkle-actions"><button type="button" class="sparkle-chip" data-sparkle-ack>Continue</button></div></div><div class="sparkle-preview" data-sparkle-preview hidden><p data-sparkle-preview-text></p><div class="sparkle-actions"><button type="button" class="sparkle-chip" data-sparkle-accept>Use it anyway</button><button type="button" class="sparkle-ghost" data-sparkle-reject>Discard</button></div></div></div>`;
     const dock = root.querySelector("[data-sparkle-dock]");
     if (dock) {
       dock.innerHTML = `<div class="sparkle-dock-clip">${panelMarkup}</div>`;
@@ -289,8 +303,6 @@
     const chips = scope.querySelector("[data-sparkle-chips]");
     const input = scope.querySelector("[data-sparkle-input]");
     const send = scope.querySelector("[data-sparkle-send]");
-    const count = scope.querySelector("[data-sparkle-count]");
-    const limitHint = scope.querySelector("[data-sparkle-limit]");
     const privacy = scope.querySelector("[data-sparkle-privacy]");
     const preview = scope.querySelector("[data-sparkle-preview]");
     const previewText = scope.querySelector("[data-sparkle-preview-text]");
@@ -362,13 +374,10 @@
 
     function paintCount() {
       const total = wordCount(input.value);
-      if (count) count.textContent = `${total}/6 words`;
-      const over = total > 6;
-      limitHint.hidden = !over;
       const enter = panel.querySelector(".sparkle-enter");
       if (enter) enter.hidden = total > 0;
       send.disabled = busy || total === 0;
-      input.setAttribute("aria-invalid", over ? "true" : "false");
+      input.removeAttribute("aria-invalid");
     }
 
     function showChips(list, skeleton) {
@@ -605,7 +614,7 @@
     }
 
     function onClick(event) {
-      const target = event.target.closest("[data-sparkle-toggle], [data-sparkle-close], [data-sparkle-chip], [data-sparkle-send], [data-sparkle-ack], [data-sparkle-accept], [data-sparkle-reject], [data-sparkle-history], [data-sparkle-undo]");
+      const target = event.target.closest("[data-sparkle-toggle], [data-sparkle-close], [data-sparkle-chip], [data-sparkle-send], [data-sparkle-ack], [data-sparkle-accept], [data-sparkle-reject], [data-sparkle-undo]");
       if (!target) return;
       event.preventDefault();
       event.stopPropagation();
@@ -648,10 +657,6 @@
       if (target.hasAttribute("data-sparkle-reject")) {
         previewPayload = null;
         preview.hidden = true;
-        return;
-      }
-      if (target.hasAttribute("data-sparkle-history")) {
-        openHistory().catch(() => {});
       }
     }
 
@@ -688,8 +693,25 @@
       writeSource(md);
     }
 
+    function onBeforeInput(event) {
+      if (event.target !== input) return;
+      const type = event.inputType || "";
+      if (type.startsWith("delete") || type === "historyUndo" || type === "historyRedo" || type === "insertFromPaste" || type === "insertFromDrop" || type === "insertCompositionText") return;
+      const data = event.data == null ? "" : String(event.data);
+      const start = input.selectionStart == null ? input.value.length : input.selectionStart;
+      const end = input.selectionEnd == null ? input.value.length : input.selectionEnd;
+      const raw = input.value.slice(0, start) + data + input.value.slice(end);
+      if (clampFollowup(raw) !== raw) event.preventDefault();
+    }
+
     function onInput(event) {
       if (event.target === input) {
+        const next = clampFollowup(input.value);
+        if (next !== input.value) {
+          const pos = Math.min(input.selectionStart == null ? next.length : input.selectionStart, next.length);
+          input.value = next;
+          input.setSelectionRange(pos, pos);
+        }
         paintCount();
         return;
       }
@@ -771,6 +793,7 @@
     const surfaces = dock ? [host, dock] : [host];
     surfaces.forEach((node) => {
       node.addEventListener("click", onClick);
+      node.addEventListener("beforeinput", onBeforeInput);
       node.addEventListener("input", onInput);
       node.addEventListener("keydown", onKeydown);
     });
@@ -791,6 +814,7 @@
         if (busy && note.id) dispatch("notes.sparkle.cancel", { id: note.id }).catch(() => {});
         surfaces.forEach((node) => {
           node.removeEventListener("click", onClick);
+          node.removeEventListener("beforeinput", onBeforeInput);
           node.removeEventListener("input", onInput);
           node.removeEventListener("keydown", onKeydown);
         });

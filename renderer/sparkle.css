@@ -407,12 +407,20 @@
 .note-md {
   z-index: 1;
   overflow: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   padding: 12px 14px;
   background: #fcfcfb;
   color: var(--fg, var(--vast-950));
   font-size: 13px;
   line-height: 1.5;
   pointer-events: none;
+}
+
+.note-md::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .note-md h1,
@@ -683,18 +691,18 @@
 
 .note-shell {
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr);
+  grid-template-columns: 46px minmax(0, 1fr) 8px;
   grid-template-rows: 44px minmax(0, 1fr) 8px;
   background: #f5f4f0;
   overflow: hidden;
 }
 
 .note-shell.is-expanded {
-  grid-template-columns: 172px minmax(0, 1fr);
+  grid-template-columns: 172px minmax(0, 1fr) 8px;
 }
 
 #editor.note-shell.is-expanded {
-  grid-template-columns: 172px minmax(0, 1fr);
+  grid-template-columns: 172px minmax(0, 1fr) 8px;
 }
 
 #editor.note-shell {
@@ -705,7 +713,7 @@
   align-self: flex-start;
   width: 100%;
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr);
+  grid-template-columns: 46px minmax(0, 1fr) 8px;
   grid-template-rows: 44px minmax(0, 1fr) 8px;
   background: #f5f4f0;
   border: 1px solid #eeebe3;
@@ -728,10 +736,12 @@
   align-items: stretch;
   justify-content: flex-start;
   gap: 2px;
-  padding: 44px 5px 12px;
+  padding: 48px 5px 12px;
   background: transparent;
   z-index: 2;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .note-shell > .note-top {
@@ -757,6 +767,7 @@
   min-height: 0;
   background: #fcfcfb;
   border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
   border-bottom-left-radius: 14px;
   border-bottom-right-radius: 14px;
   overflow: hidden;
@@ -769,8 +780,8 @@
 }
 
 .note-write {
-  position: relative;
-  flex: 1 1 auto;
+  position: absolute;
+  inset: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -793,6 +804,7 @@
   caret-color: transparent;
   pointer-events: none;
   opacity: 0;
+  overflow: hidden;
   font-size: 13px;
   line-height: 1.5;
   padding: 12px 14px;
@@ -834,16 +846,30 @@
   outline: none;
   white-space: pre-wrap;
   overflow: auto;
+  padding: 12px 14px 56px;
+}
+
+.note-main:has(.sparkle-dock.is-open) .note-write > .note-md {
+  padding-bottom: 220px;
 }
 
 .note-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 7;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  flex: 0 0 auto;
   padding: 4px 12px 6px;
-  background: #fcfcfb;
+  background: transparent;
+  pointer-events: none;
+}
+
+.note-foot button {
+  pointer-events: auto;
 }
 
 .note-rail .sparkle-host {
@@ -918,16 +944,21 @@
 }
 
 .sparkle-dock {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 46px;
+  z-index: 8;
   display: grid;
   grid-template-rows: 0fr;
-  margin: 0 12px;
+  margin: 0;
   min-height: 0;
-  transition: grid-template-rows 220ms ease, margin 220ms ease;
+  transition: grid-template-rows 220ms ease;
 }
 
 .sparkle-dock.is-open {
   grid-template-rows: 1fr;
-  margin: 0 12px 8px;
+  margin: 0;
 }
 
 .sparkle-dock-clip {
@@ -1018,25 +1049,6 @@
 .sparkle-dock .sparkle-chips .sparkle-chip.is-skeleton {
   border-color: transparent;
   color: transparent;
-}
-
-.sparkle-history {
-  position: relative;
-  z-index: 2;
-  flex: 0 0 auto;
-  margin-left: auto;
-  border: 0;
-  background: transparent;
-  color: #8a877f;
-  pointer-events: auto;
-  padding: 0;
-  height: 20px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.sparkle-history:hover {
-  color: #1a1a1a;
 }
 
 .sparkle-refresh {
@@ -1139,13 +1151,21 @@
   display: none;
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   margin-top: 6px;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: #c8c4ba transparent;
 }
 
 .note-rail-list::-webkit-scrollbar {
-  display: none;
+  width: 8px;
+  height: 8px;
+}
+
+.note-rail-list::-webkit-scrollbar-thumb {
+  background: #c8c4ba;
+  border-radius: 999px;
 }
 
 .note-rail-bottom {
@@ -1311,10 +1331,10 @@
   background: transparent;
   color: #1a1a1a;
   font-size: 12.5px;
-  line-height: 1.3;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.35;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: break-word;
 }
 
 .note-rail-note:hover,

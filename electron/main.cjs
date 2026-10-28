@@ -490,13 +490,14 @@ function placeNoteHistory(anchor) {
 
 function deliverHistory(id) {
   if (!noteHistoryWindow || noteHistoryWindow.isDestroyed()) return;
+  const contents = noteHistoryWindow.webContents;
   const payload = { id, rows: historyRows(id) };
   const send = () => {
-    if (!noteHistoryWindow || noteHistoryWindow.isDestroyed()) return;
-    noteHistoryWindow.webContents.send("note-history", payload);
+    if (!noteHistoryWindow || noteHistoryWindow.isDestroyed() || contents.isDestroyed()) return;
+    contents.send("note-history", payload);
   };
-  if (noteHistoryWindow.webContents.isLoading()) noteHistoryWindow.webContents.once("did-finish-load", send);
-  else send();
+  send();
+  if (contents.isLoading()) contents.once("did-stop-loading", send);
 }
 
 function closeNoteHistory() {
@@ -580,7 +581,7 @@ async function openNoteHistory(payload, event) {
     const loaded = new Promise((resolve) => {
       win.webContents.once("did-finish-load", resolve);
     });
-    win.loadFile(path.join(root, "renderer", "note-history.html"));
+    win.loadFile(path.join(root, "renderer", "note-history.html"), { query: { id } });
     await loaded;
     if (!noteHistoryWindow || noteHistoryWindow.isDestroyed() || noteHistoryWindow !== win) return { open: false };
   } else {
@@ -1714,6 +1715,10 @@ const actions = {
   },
   "notes.sparkle.history.open": (payload, event) => openNoteHistory(payload || {}, event),
   "notes.sparkle.history.close": () => closeNoteHistory(),
+  "notes.sparkle.history.rows": (payload) => {
+    const id = String((payload && payload.id) || "");
+    return { id, rows: historyRows(id) };
+  },
   "desk.pending": () => {
     const value = pendingRefresh;
     pendingRefresh = null;

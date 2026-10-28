@@ -29,10 +29,12 @@ test("rewrite and suggestion prompts stay verbatim", () => {
 });
 
 test("instruction word limit counts without cutting the text", () => {
-  assert.equal(improve.instructionState("eins zwei drei vier fünf sechs").over, false);
-  const over = improve.instructionState("eins zwei drei vier fünf sechs sieben");
+  const fitted = improve.instructionState("eins zwei drei vier fünf sechs sieben acht neun zehn");
+  assert.equal(fitted.over, false);
+  assert.equal(fitted.limit, 10);
+  const over = improve.instructionState("eins zwei drei vier fünf sechs sieben acht neun zehn elf");
   assert.equal(over.over, true);
-  assert.equal(over.count, 7);
+  assert.equal(over.count, 11);
   assert.equal(improve.countWords("  alpha   beta  "), 2);
 });
 

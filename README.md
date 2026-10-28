@@ -44,6 +44,16 @@ The new **Commands** tab lets you create, search and manage your own Windows scr
 
 ---
 
+## New: Note Improvement — Rewrite the open note
+
+<p align="center">
+  <img src="docs/note-improvement.png" alt="OpenFlow Note Improvement: the Improve panel open inside a note, with suggestion chips and a follow-up field." width="100%">
+</p>
+
+**Note Improvement** rewrites the note you already have open. Open **Improve** in the note rail and pick a short suggestion such as **Polish**, **Shorten**, or **As a list**, or type your own follow-up (up to ten words). The note uses the same OpenAI API key as dictation and is sent only when you ask. The rewrite replaces the note text, and you can undo it.
+
+---
+
 ## Application UI & Workspace Tabs
 
 <p align="center">
@@ -96,7 +106,7 @@ OpenFlow has **zero subscriptions or middleman fees**:
 
 Download the latest Windows installer from the [**Releases**](https://github.com/LuiInventions/OpenFlow/releases) page:
 
-- **`OpenFlow-Setup-1.5.10.exe`** — Lightweight Windows NSIS Web/Stub Installer (~1 MB download) with customizable install directory, Start Menu entry, and Desktop shortcut. Automatically fetches the application package from GitHub Releases during setup, checks whether **Parakeet v3** is already installed (skipping download if present, or showing a live MB progress bar), and then opens OpenFlow. Notes use a narrow left rail to collapse, search, open another note, improve, and format. The note stays Markdown. Bold, italic, and underline apply in the text, and the format bar sits on the Copy and Save row. The dictate shortcut shows as separate key chips until the note is clicked. Note improvement uses the same OpenAI API key and is on by default. Note history opens in its own window beside the note.
+- **`OpenFlow-Setup-1.5.11.exe`** — Lightweight Windows NSIS Web/Stub Installer (~1 MB download) with customizable install directory, Start Menu entry, and Desktop shortcut. Automatically fetches the application package from GitHub Releases during setup, checks whether **Parakeet v3** is already installed (skipping download if present, or showing a live MB progress bar), and then opens OpenFlow. Notes use a narrow left rail to collapse, search, open another note, improve, and format. The rail icons line up with the first line of the note. Search in Notes shows every saved note, and long titles wrap instead of being cut off. Note improvement uses the same OpenAI API key, stays on the note, and no longer shows a History button.
 
 Requirements: Windows 10 or Windows 11 (64-bit). An OpenAI API key is optional.
 
@@ -110,7 +120,7 @@ npm test
 npm run dist
 ```
 
-This builds the Windows NSIS Web Stub installer (`release/nsis-web/OpenFlow-Setup-1.5.10.exe`).
+This builds the Windows NSIS Web Stub installer (`release/nsis-web/OpenFlow-Setup-1.5.11.exe`).
 
 ---
 

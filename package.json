@@ -1,6 +1,6 @@
 {
   "name": "openflow",
-  "version": "1.5.10",
+  "version": "1.5.11",
   "author": "LuiInventions",
   "license": "GPL-3.0-only",
   "description": "Local-first voice dictation, notes, and screenshot dock for Windows. Includes local open-source Parakeet v3 STT and optional OpenAI API support.",
