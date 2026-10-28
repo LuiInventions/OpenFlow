@@ -471,6 +471,12 @@ function createStore(filePath) {
         created_at: now(),
         seq: data.padVersions.length,
       };
+      if (input.words != null) version.words = Math.max(0, Math.round(Number(input.words) || 0));
+      if (input.prompt_tokens != null) version.prompt_tokens = Math.max(0, Math.round(Number(input.prompt_tokens) || 0));
+      if (input.completion_tokens != null) version.completion_tokens = Math.max(0, Math.round(Number(input.completion_tokens) || 0));
+      if (input.cached_tokens != null) version.cached_tokens = Math.max(0, Math.round(Number(input.cached_tokens) || 0));
+      if (input.cost_usd != null) version.cost_usd = Number(input.cost_usd) || 0;
+      if (input.tokens_estimated != null) version.tokens_estimated = Boolean(input.tokens_estimated);
       data.padVersions.push(version);
       save();
       return { ...version };
@@ -480,6 +486,9 @@ function createStore(filePath) {
         .filter((row) => row.pad_id === padId)
         .sort((a, b) => (b.seq - a.seq) || b.created_at.localeCompare(a.created_at))
         .map((row) => ({ ...row }));
+    },
+    listAllPadVersions() {
+      return data.padVersions.map((row) => ({ ...row }));
     },
     deletePad(padId) {
       data.pads = data.pads.filter((row) => row.id !== padId);

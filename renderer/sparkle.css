@@ -780,8 +780,8 @@
 }
 
 .note-write {
-  position: absolute;
-  inset: 0;
+  position: relative;
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -846,30 +846,17 @@
   outline: none;
   white-space: pre-wrap;
   overflow: auto;
-  padding: 12px 14px 56px;
-}
-
-.note-main:has(.sparkle-dock.is-open) .note-write > .note-md {
-  padding-bottom: 220px;
+  padding: 12px 14px;
 }
 
 .note-foot {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 7;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+  flex: 0 0 auto;
   padding: 4px 12px 6px;
-  background: transparent;
-  pointer-events: none;
-}
-
-.note-foot button {
-  pointer-events: auto;
+  background: #fcfcfb;
 }
 
 .note-rail .sparkle-host {
@@ -944,21 +931,16 @@
 }
 
 .sparkle-dock {
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 46px;
-  z-index: 8;
   display: grid;
   grid-template-rows: 0fr;
-  margin: 0;
+  margin: 0 12px;
   min-height: 0;
-  transition: grid-template-rows 220ms ease;
+  transition: grid-template-rows 220ms ease, margin 220ms ease;
 }
 
 .sparkle-dock.is-open {
   grid-template-rows: 1fr;
-  margin: 0;
+  margin: 0 12px 8px;
 }
 
 .sparkle-dock-clip {
@@ -1476,6 +1458,14 @@
 
 .format-bar button:hover {
   background: #f5f4f0;
+}
+
+.format-bar button.is-on {
+  background: rgba(26, 26, 26, 0.14);
+}
+
+.format-bar button.is-on:hover {
+  background: rgba(26, 26, 26, 0.2);
 }
 
 .format-bar svg {

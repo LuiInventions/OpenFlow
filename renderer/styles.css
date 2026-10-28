@@ -140,7 +140,14 @@ main {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 18px;
+}
+
+main.is-usage #view {
+  flex: 1 1 auto;
+  min-height: 0;
+  justify-content: center;
 }
 
 h1 {
@@ -575,11 +582,40 @@ h1 {
   font-size: 11px;
 }
 
-.note {
-  margin: 2px 0 0;
+.usage-board {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.usage-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-xs);
+  flex: 0 0 auto;
+}
+
+.usage-switch button {
+  border: 0;
+  background: transparent;
   color: var(--muted);
+  border-radius: 999px;
+  padding: 5px 10px;
   font-size: 12px;
-  line-height: 1.45;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.usage-switch button[aria-pressed="true"] {
+  background: var(--fg);
+  color: #ffffff;
 }
 
 /* Settings View & STT Engine Cards */

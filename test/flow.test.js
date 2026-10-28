@@ -65,6 +65,58 @@ test("usageReport sums the last 30 local days from history", () => {
   assert.equal(report.days[29].costUsd, 0.0045);
 });
 
+test("noteImproveUsageReport prices saved note changes over 30 local days", () => {
+  const now = new Date(2026, 9, 28, 12, 0, 0);
+  const priced = flow.noteImproveCost("gpt-6-luna", 1000, 500, 0);
+  assert.equal(priced, 0.00035);
+  assert.equal(flow.noteImproveCost("gpt-6-luna", 1000, 500, 800), 0.000278);
+  assert.equal(flow.noteImproveCost("gpt-6-luna", 272001, 0, 0), 0.0544);
+  assert.equal(flow.noteImproveCost("gpt-4.1-mini", 100, 50, 0), 0.00012);
+  assert.equal(flow.noteImproveCost("gpt-4o-mini", 1e6, 0, 1e6), 0.075);
+
+  const before = "one two three four";
+  const estimated = flow.measureNoteChange({
+    before,
+    after: "one two three four five",
+    instruction: "Polish",
+    model: "gpt-6-luna",
+    usage: null,
+  });
+  assert.equal(estimated.words, 4);
+  assert.equal(estimated.tokensEstimated, true);
+  assert.equal(estimated.promptTokens, flow.estimateTokens(require("../src/note-improve").REWRITE_SYSTEM) + flow.estimateTokens(require("../src/note-improve").buildRewriteUser("Polish", before)));
+  assert.equal(estimated.completionTokens, flow.estimateTokens("one two three four five"));
+
+  const metered = flow.measureNoteChange({
+    before,
+    after: "done",
+    instruction: "Polish",
+    model: "gpt-4.1-mini",
+    usage: { promptTokens: 100, completionTokens: 50, cachedTokens: 0 },
+  });
+  assert.equal(metered.tokensEstimated, false);
+  assert.equal(metered.tokens, 150);
+  assert.equal(metered.costUsd, 0.00012);
+
+  const report = flow.noteImproveUsageReport([
+    { pad_id: "a", seq: 1, kind: "snapshot", content: before, created_at: new Date(2026, 9, 28, 9).toISOString() },
+    { pad_id: "a", seq: 2, kind: "improve", content: "one two three four five", instruction: "Polish", model: "gpt-6-luna", created_at: new Date(2026, 9, 28, 9).toISOString(), words: 4, prompt_tokens: 1000, completion_tokens: 500, cached_tokens: 0, cost_usd: 0.00035, tokens_estimated: false },
+    { pad_id: "b", seq: 3, kind: "snapshot", content: "older note", created_at: new Date(2026, 8, 28, 9).toISOString() },
+    { pad_id: "b", seq: 4, kind: "improve", content: "older note rewritten", instruction: "Polish", model: "gpt-6-luna", created_at: new Date(2026, 8, 28, 9).toISOString() },
+    { pad_id: "c", seq: 5, kind: "improve", content: "no date", instruction: "Polish", created_at: "kein-datum" },
+  ], now);
+  assert.equal(report.days.length, 30);
+  assert.equal(report.from, "2026-09-29");
+  assert.equal(report.to, "2026-10-28");
+  assert.equal(report.changes, 1);
+  assert.equal(report.words, 4);
+  assert.equal(report.tokens, 1500);
+  assert.equal(report.costUsd, 0.00035);
+  assert.equal(report.estimated, false);
+  assert.equal(report.days[29].changes, 1);
+  assert.equal(report.days[0].changes, 0);
+});
+
 test("tour lists every desk section", () => {
   const ids = flow.tourSteps().map((step) => step.id);
   for (const id of ["dictate", "history", "dictionary", "snippets", "notes", "meetings", "calendar", "todos", "folders", "polish", "translate", "instruct", "scratchpad", "corrections", "links", "automations", "stats", "style", "notifications", "settings"]) {

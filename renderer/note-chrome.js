@@ -34,7 +34,7 @@
   }
 
   function formatDockHtml() {
-    return `<div class="format-dock" data-format-dock inert><div class="format-bar" role="toolbar" aria-label="Formatting"><button type="button" data-format="bold" aria-label="Bold"><span class="fmt-b">B</span></button><button type="button" data-format="italic" aria-label="Italic"><span class="fmt-i">I</span></button><button type="button" data-format="underline" aria-label="Underline"><span class="fmt-u">U</span></button></div></div>`;
+    return `<div class="format-dock" data-format-dock inert><div class="format-bar" role="toolbar" aria-label="Formatting"><button type="button" data-format="bold" aria-pressed="false" aria-label="Bold"><span class="fmt-b">B</span></button><button type="button" data-format="italic" aria-pressed="false" aria-label="Italic"><span class="fmt-i">I</span></button><button type="button" data-format="underline" aria-pressed="false" aria-label="Underline"><span class="fmt-u">U</span></button></div></div>`;
   }
 
   function toggleWrap(text, before, after) {
@@ -248,6 +248,43 @@
     }
     let formatOpen = false;
 
+    function activeFormats(view) {
+      const empty = { bold: false, italic: false, underline: false };
+      if (!view) return empty;
+      const sel = window.getSelection && window.getSelection();
+      if (!sel || !sel.rangeCount) return empty;
+      const node = sel.anchorNode;
+      if (!node || (node !== view && !view.contains(node))) return empty;
+      const el = node.nodeType === 1 ? node : node.parentElement;
+      const hit = (selector) => Boolean(el && el.closest && view.contains(el.closest(selector)));
+      const marks = {
+        bold: hit("b, strong"),
+        italic: hit("i, em"),
+        underline: hit("u"),
+      };
+      try {
+        if (document.queryCommandState) {
+          marks.bold = marks.bold || document.queryCommandState("bold");
+          marks.italic = marks.italic || document.queryCommandState("italic");
+          marks.underline = marks.underline || document.queryCommandState("underline");
+        }
+      } catch (_error) {
+        return marks;
+      }
+      return marks;
+    }
+
+    function paintFormats() {
+      const view = richView(textarea);
+      const marks = activeFormats(view);
+      shell.querySelectorAll("[data-format]").forEach((button) => {
+        const kind = button.getAttribute("data-format");
+        const on = Boolean(marks[kind]);
+        button.classList.toggle("is-on", on);
+        button.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
+
     function setFormat(open) {
       const next = Boolean(open);
       formatOpen = next;
@@ -318,6 +355,7 @@
       const format = event.target.closest("[data-format]");
       if (format) {
         applyFormat(textarea, format.getAttribute("data-format"));
+        paintFormats();
         return;
       }
       const open = event.target.closest("[data-note-open]");
@@ -340,7 +378,13 @@
       if (formatOpen) setFormat(false);
     }
 
+    function onSelection() {
+      if (!shell.isConnected) return;
+      paintFormats();
+    }
+
     shell.addEventListener("click", onClick);
+    document.addEventListener("selectionchange", onSelection);
     shell.addEventListener("mousedown", onMouseDown);
     shell.addEventListener("input", onSearch);
     shell.addEventListener("keydown", onKeydown);
@@ -361,6 +405,7 @@
       refresh,
       destroy() {
         shell.removeEventListener("click", onClick);
+        document.removeEventListener("selectionchange", onSelection);
         shell.removeEventListener("mousedown", onMouseDown);
         shell.removeEventListener("input", onSearch);
         shell.removeEventListener("keydown", onKeydown);

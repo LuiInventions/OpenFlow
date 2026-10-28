@@ -2,6 +2,7 @@
 
 const providers = require("./providers");
 const improve = require("./note-improve");
+const flow = require("./flow");
 
 const GENERIC_ERROR = "Improvement failed. Try again.";
 
@@ -111,7 +112,7 @@ function createNoteSparkle(deps) {
     }
     if (!response.ok) throw openAIFailure(response);
     const body = await response.json();
-    return providers.parseChatText(body);
+    return { text: providers.parseChatText(body), usage: providers.readChatUsage(body) };
   }
 
   async function completeLocal({ kind, system, user, temperature, jsonSchema, signal }) {
@@ -131,10 +132,40 @@ function createNoteSparkle(deps) {
     });
   }
 
+  function normalizeUsage(usage) {
+    if (!usage || typeof usage !== "object") return null;
+    const prompt = usage.promptTokens != null ? usage.promptTokens : usage.prompt_tokens;
+    const completion = usage.completionTokens != null ? usage.completionTokens : usage.completion_tokens;
+    if (prompt == null && completion == null) return null;
+    const cached = usage.cachedTokens != null ? usage.cachedTokens : usage.cached_tokens;
+    const promptTokens = Math.max(0, Math.round(Number(prompt) || 0));
+    return {
+      promptTokens,
+      completionTokens: Math.max(0, Math.round(Number(completion) || 0)),
+      cachedTokens: Math.max(0, Math.min(promptTokens, Math.round(Number(cached) || 0))),
+    };
+  }
+
+  function asCompletion(result) {
+    if (result && typeof result === "object" && typeof result.text === "string") {
+      return { text: result.text, usage: normalizeUsage(result.usage) };
+    }
+    return { text: result == null ? "" : String(result), usage: null };
+  }
+
+  function mergeUsage(parts) {
+    if (!parts.length || parts.some((part) => !part.usage)) return null;
+    return {
+      promptTokens: parts.reduce((sum, part) => sum + part.usage.promptTokens, 0),
+      completionTokens: parts.reduce((sum, part) => sum + part.usage.completionTokens, 0),
+      cachedTokens: parts.reduce((sum, part) => sum + part.usage.cachedTokens, 0),
+    };
+  }
+
   async function complete(args) {
-    if (deps.complete) return deps.complete(args);
-    if (providerName() === "local") return completeLocal(args);
-    return completeOpenAI(args);
+    if (deps.complete) return asCompletion(await deps.complete(args));
+    if (providerName() === "local") return asCompletion(await completeLocal(args));
+    return asCompletion(await completeOpenAI(args));
   }
 
   async function rewriteOne(content, instruction, signal, timeoutMs) {
@@ -167,10 +198,13 @@ function createNoteSparkle(deps) {
     for (const part of plan.parts) {
       parts.push(await rewriteOne(part, instruction, signal, timeoutMs));
     }
-    return parts.map((part) => improve.cleanModelOutput(part)).filter(Boolean).join("\n\n");
+    return {
+      text: parts.map((part) => improve.cleanModelOutput(part.text)).filter(Boolean).join("\n\n"),
+      usage: mergeUsage(parts),
+    };
   }
 
-  function commit(pad, before, output, instruction) {
+  function commit(pad, before, output, instruction, measured) {
     const snapshot = store.addPadVersion(pad.id, {
       content: before,
       label: "Before improvement",
@@ -180,6 +214,7 @@ function createNoteSparkle(deps) {
       model: modelName(),
     });
     const saved = store.savePad({ id: pad.id, title: pad.title, content: output });
+    const usage = measured || {};
     store.addPadVersion(pad.id, {
       content: output,
       label: `Improvement: ${instruction}`,
@@ -187,6 +222,12 @@ function createNoteSparkle(deps) {
       instruction,
       provider: providerName(),
       model: modelName(),
+      words: usage.words,
+      prompt_tokens: usage.promptTokens,
+      completion_tokens: usage.completionTokens,
+      cached_tokens: usage.cachedTokens,
+      cost_usd: usage.costUsd,
+      tokens_estimated: usage.tokensEstimated,
     });
     return { pad: saved, snapshotId: snapshot.id };
   }
@@ -208,12 +249,19 @@ function createNoteSparkle(deps) {
     const job = beginJob(pad.id);
     if (!job) return fail("busy");
     try {
-      const raw = await rewrite(content, instruction, job.ctrl.signal);
-      const verdict = improve.validateImproved(content, instruction, raw);
+      const done = await rewrite(content, instruction, job.ctrl.signal);
+      const verdict = improve.validateImproved(content, instruction, done.text);
       if (!verdict.ok && verdict.code !== "preview") return fail("error");
       const output = improve.asMarkdown(verdict.output || "");
       if (!output) return fail("error");
-      const committed = commit(pad, content, output, instruction);
+      const measured = flow.measureNoteChange({
+        before: content,
+        after: output,
+        instruction,
+        model: modelName(),
+        usage: done.usage,
+      });
+      const committed = commit(pad, content, output, instruction, measured);
       const result = {
         ok: true,
         id: committed.pad.id,
@@ -243,7 +291,14 @@ function createNoteSparkle(deps) {
     const output = improve.cleanModelOutput(payload.output || "");
     if (!output || !settings().noteImproveEnabled) return fail("error");
     const pad = ensurePad({ id: payload.id, title: payload.title, content: before });
-    const committed = commit(pad, before, output, instruction);
+    const measured = flow.measureNoteChange({
+      before,
+      after: output,
+      instruction,
+      model: modelName(),
+      usage: null,
+    });
+    const committed = commit(pad, before, output, instruction, measured);
     Promise.resolve().then(() => refreshSuggestions(committed.pad.id, output)).catch(() => {});
     return {
       ok: true,
@@ -305,7 +360,7 @@ function createNoteSparkle(deps) {
         jsonSchema: improve.SUGGESTION_SCHEMA,
         signal: linked.signal,
       });
-      const parsed = improve.parseSuggestions(raw);
+      const parsed = improve.parseSuggestions(raw.text);
       if (padId) store.setPadSuggestions(padId, hash, parsed.suggestions);
       return { suggestions: parsed.suggestions, fresh: true, hash, fallback: parsed.usedFallback, id: padId || "" };
     } catch (_error) {

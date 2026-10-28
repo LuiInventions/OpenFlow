@@ -1783,6 +1783,7 @@ const actions = {
     pads: store.listPads(),
     commands: store.listCommands(),
     usage: flow.usageReport(store.listHistory()),
+    improveUsage: flow.noteImproveUsageReport(store.listAllPadVersions()),
     notes: store.listNotes(),
     meetings: store.listMeetings(),
     events: store.listEvents(),

@@ -216,6 +216,23 @@ function flattenChatContent(content) {
   }).join("");
 }
 
+function readChatUsage(body) {
+  const usage = body && body.usage;
+  if (!usage || typeof usage !== "object") return null;
+  const prompt = usage.prompt_tokens != null ? usage.prompt_tokens : usage.input_tokens;
+  const completion = usage.completion_tokens != null ? usage.completion_tokens : usage.output_tokens;
+  if (prompt == null && completion == null) return null;
+  const promptTokens = Math.max(0, Math.round(Number(prompt) || 0));
+  const completionTokens = Math.max(0, Math.round(Number(completion) || 0));
+  const details = usage.prompt_tokens_details || usage.input_tokens_details || {};
+  const cached = details.cached_tokens != null ? details.cached_tokens : usage.cached_tokens;
+  return {
+    promptTokens,
+    completionTokens,
+    cachedTokens: Math.max(0, Math.min(promptTokens, Math.round(Number(cached) || 0))),
+  };
+}
+
 function parseChatText(body) {
   const choice = body && body.choices && body.choices[0];
   const message = choice && choice.message;
@@ -303,6 +320,7 @@ module.exports = {
   parseTranscription,
   detectedLanguage,
   parseChatText,
+  readChatUsage,
   postJson,
   postTranscription,
   postAudio,

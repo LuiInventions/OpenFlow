@@ -145,6 +145,48 @@ test("sparkle flow replaces the note, keeps a snapshot, and undo restores it", a
   assert.equal(calls.some((call) => call.kind === "rewrite"), true);
 });
 
+test("a metered rewrite stores words, tokens, and the list-price estimate", async () => {
+  const store = createStore(":memory:");
+  store.updateSettings({
+    noteImproveEnabled: true,
+    noteImproveModel: "gpt-6-luna",
+    noteImprovePrivacyAck: true,
+  });
+  const sparkle = createNoteSparkle({
+    store,
+    readKey: () => "sk-test",
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      const rewrite = body.messages.some((message) => String(message.content || "").includes("ANWEISUNG"));
+      const text = rewrite ? `${ORIGINAL}\nKlarer.` : '{"suggestions":["Polish","Shorten","Clearer"]}';
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return {
+            choices: [{ message: { content: text } }],
+            usage: rewrite ? { prompt_tokens: 1000, completion_tokens: 500, prompt_tokens_details: { cached_tokens: 800 } } : { prompt_tokens: 20, completion_tokens: 8 },
+          };
+        },
+      };
+    },
+  });
+  const result = await sparkle.improve({ title: "Plan", content: ORIGINAL, instruction: "Polish" });
+  assert.equal(result.ok, true);
+  const saved = store.listPadVersions(result.id).find((row) => row.kind === "improve");
+  assert.equal(saved.words, ORIGINAL.trim().split(/\s+/).length);
+  assert.equal(saved.prompt_tokens, 1000);
+  assert.equal(saved.completion_tokens, 500);
+  assert.equal(saved.cached_tokens, 800);
+  assert.equal(saved.tokens_estimated, false);
+  assert.equal(saved.cost_usd, 0.000278);
+  const report = require("../src/flow").noteImproveUsageReport(store.listAllPadVersions(), new Date());
+  assert.equal(report.changes, 1);
+  assert.equal(report.tokens, 1500);
+  assert.equal(report.words, saved.words);
+  assert.equal(report.costUsd, 0.000278);
+});
+
 test("note improvement stays off until the user turns it on", async () => {
   const store = createStore(":memory:");
   store.updateSettings({

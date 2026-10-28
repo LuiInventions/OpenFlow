@@ -32,6 +32,7 @@ const state = {
   noteInfoOpenai: false,
   noteKeyTest: "",
   noteModelProgress: null,
+  usageKind: "stt",
 };
 let loadGeneration = 0;
 let draggedElemId = null;
@@ -192,7 +193,7 @@ function dayLabel(iso) {
 }
 
 function money(value) {
-  return `${new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(Number(value) || 0)} USD`;
+  return `${new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(Number(value) || 0)} USD`;
 }
 
 function minutes(durationMs) {
@@ -304,6 +305,9 @@ function render() {
                         (state.view === "commands" && Boolean(state.commandEditor));
   if (viewHead) viewHead.hidden = showingEditor;
   view.hidden = showingEditor;
+  const main = document.querySelector("main");
+  if (main) main.classList.toggle("is-usage", state.view === "usage" && !showingEditor);
+  paintUsageSwitch(viewHead, state.view === "usage" && !showingEditor);
   if (!showingEditor) {
     if (state.view === "notes") view.innerHTML = notesHtml();
     else if (state.view === "commands") view.innerHTML = commandsHtml();
@@ -469,17 +473,49 @@ function notesHtml() {
   return `${searchHtml}${list}${fab}`;
 }
 
-function usageHtml() {
-  const report = state.desk.usage || { days: [], words: 0, durationMs: 0, costUsd: 0, pricePerMinute: 0.0045, from: "", to: "", dictations: 0 };
-  const basis = report.days.some((day) => day.durationMs > 0) ? "durationMs" : "words";
-  const peak = report.days.reduce((max, day) => Math.max(max, Number(day[basis]) || 0), 0);
-  const bars = report.days.map((day) => {
+function paintUsageSwitch(head, show) {
+  if (!head) return;
+  const existing = head.querySelector(".usage-switch");
+  if (!show) {
+    if (existing) existing.remove();
+    return;
+  }
+  const kind = state.usageKind === "improve" ? "improve" : "stt";
+  const html = `<div class="usage-switch" role="group" aria-label="Usage source"><button type="button" data-usage-kind="stt" aria-pressed="${kind === "stt" ? "true" : "false"}">STT Usage</button><button type="button" data-usage-kind="improve" aria-pressed="${kind === "improve" ? "true" : "false"}">Note Improvement Usage</button></div>`;
+  if (existing) existing.outerHTML = html;
+  else head.insertAdjacentHTML("beforeend", html);
+}
+
+function usageBars(days, basis, titleFor) {
+  const rows = Array.isArray(days) ? days : [];
+  const peak = rows.reduce((max, day) => Math.max(max, Number(day[basis]) || 0), 0);
+  return rows.map((day) => {
     const height = peak ? Math.max(4, Math.round(((Number(day[basis]) || 0) / peak) * 100)) : 4;
-    const label = `${day.date}: ${day.words} words, ${day.dictations} dictations`;
-    return `<i style="height:${height}%" title="${esc(label)}"></i>`;
+    return `<i style="height:${height}%" title="${esc(titleFor(day))}"></i>`;
   }).join("");
-  const price = new Intl.NumberFormat("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 }).format(report.pricePerMinute || 0.0045);
-  return `<div class="stats"><article class="stat"><b>${minutes(report.durationMs)} min</b><span>Audio, ${report.dictations || 0} dictations</span></article><article class="stat"><b>${money(report.costUsd)}</b><span>Estimated API cost</span></article><article class="stat"><b>${new Intl.NumberFormat("en-US").format(report.words || 0)}</b><span>Spoken words</span></article></div><div class="chart-card"><div class="chart" role="img" aria-label="Usage over the last 30 days">${bars}</div><div class="axis"><span>${esc(dayLabel(report.from))}</span><span>${esc(dayLabel(report.to))}</span></div></div><p class="note">Only dictations made with OpenAI (gpt-transcribe) are counted here (${price} USD per minute).</p>`;
+}
+
+function usageBoard(statsHtml, bars, label, from, to) {
+  return `<div class="usage-board"><div class="stats">${statsHtml}</div><div class="chart-card"><div class="chart" role="img" aria-label="${esc(label)}">${bars}</div><div class="axis"><span>${esc(dayLabel(from))}</span><span>${esc(dayLabel(to))}</span></div></div></div>`;
+}
+
+function usageHtml() {
+  if (state.usageKind === "improve") {
+    const report = state.desk.improveUsage || { days: [], words: 0, tokens: 0, costUsd: 0, changes: 0, from: "", to: "" };
+    const days = report.days || [];
+    const basis = days.some((day) => day.words > 0) ? "words" : "tokens";
+    const bars = usageBars(days, basis, (day) => `${day.date}: ${day.words} words, ${day.tokens} tokens, ${day.changes} changes`);
+    const words = new Intl.NumberFormat("en-US").format(report.words || 0);
+    const tokens = new Intl.NumberFormat("en-US").format(report.tokens || 0);
+    const stats = `<article class="stat"><b>${words}</b><span>Words, ${report.changes || 0} changes</span></article><article class="stat"><b>${money(report.costUsd)}</b><span>Estimated API cost</span></article><article class="stat"><b>${tokens}</b><span>Tokens</span></article>`;
+    return usageBoard(stats, bars, "Note improvement over the last 30 days", report.from, report.to);
+  }
+  const report = state.desk.usage || { days: [], words: 0, durationMs: 0, costUsd: 0, pricePerMinute: 0.0045, from: "", to: "", dictations: 0 };
+  const days = report.days || [];
+  const basis = days.some((day) => day.durationMs > 0) ? "durationMs" : "words";
+  const bars = usageBars(days, basis, (day) => `${day.date}: ${day.words} words, ${day.dictations} dictations`);
+  const stats = `<article class="stat"><b>${minutes(report.durationMs)} min</b><span>Audio, ${report.dictations || 0} dictations</span></article><article class="stat"><b>${money(report.costUsd)}</b><span>Estimated API cost</span></article><article class="stat"><b>${new Intl.NumberFormat("en-US").format(report.words || 0)}</b><span>Spoken words</span></article>`;
+  return usageBoard(stats, bars, "Usage over the last 30 days", report.from, report.to);
 }
 
 function settingsHtml() {
@@ -1137,6 +1173,15 @@ document.addEventListener("DOMContentLoaded", () => {
       viewEl.querySelectorAll(".bubble-preview-item").forEach((el) => el.classList.remove("dragging", "drop-target"));
     });
   }
+
+  document.querySelector(".view-head").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-usage-kind]");
+    if (!button) return;
+    const next = button.dataset.usageKind === "improve" ? "improve" : "stt";
+    if (state.usageKind === next) return;
+    state.usageKind = next;
+    render();
+  });
 
   document.querySelector("#nav").addEventListener("click", (event) => {
     const button = event.target.closest("[data-nav]");
