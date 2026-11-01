@@ -31,7 +31,7 @@ When idle, the floating bar collapses into a subtle, symmetrically clipped pure-
 Speak naturally, then choose how your words are pasted — directly from the floating bubble.
 
 <p align="center">
-  <img src="docs/clean-dictation.png" alt="OpenFlow Improve Dictation: Polish dictation selected in the bubble, with a before-and-after example removing fillers, correcting grammar, and smoothing phrasing while preserving names, dates, times, and negation." width="100%">
+  <img src="docs/compact-dictation.png" alt="OpenFlow Compact Dictation: floating bubble menu and a spoken request shortened while preserving its recipient and deadline." width="100%">
 </p>
 
 Hover over the arrow on the right of the bubble to open **Dictation settings**:
@@ -39,8 +39,8 @@ Hover over the arrow on the right of the bubble to open **Dictation settings**:
 | Mode | What it does |
 | :--- | :--- |
 | **Original** | Paste without an extra AI rewrite. |
-| **Clean dictation** | Remove filler sounds, stutters, and accidental repetitions while keeping your wording and meaning. |
-| **Polish dictation** | Also correct grammar and smooth awkward or redundant phrasing, while preserving facts, tone, and language. |
+| **Polish dictation** | Fix grammar and smooth phrasing while preserving facts, tone, and language. |
+| **Compact dictation** | Radically shorten wording. Remove fillers, pleasantries, and repetition while preserving meaning and details. |
 
 ---
 
