@@ -95,12 +95,12 @@ function createNoteSparkle(deps) {
     };
   }
 
-  async function complete(args) {
+  async function complete(args, config = completion.selection()) {
     if (deps.complete) return asCompletion(await deps.complete(args));
-    return asCompletion(await completion.complete(args));
+    return asCompletion(await completion.complete(args, config));
   }
 
-  async function rewriteOne(content, instruction, signal, timeoutMs) {
+  async function rewriteOne(content, instruction, signal, timeoutMs, config) {
     const linked = improve.linkAbort(signal, timeoutMs);
     try {
       return await complete({
@@ -109,26 +109,26 @@ function createNoteSparkle(deps) {
         user: improve.buildRewriteUser(instruction, content),
         temperature: improve.REWRITE_TEMPERATURE,
         signal: linked.signal,
-      });
+      }, config);
     } finally {
       linked.clear();
     }
   }
 
-  async function rewrite(content, instruction, signal) {
-    const local = providerName() === "local";
+  async function rewrite(content, instruction, signal, config) {
+    const local = config.provider === "local";
     const timeoutMs = local ? improve.REWRITE_TIMEOUT_LOCAL_MS : improve.REWRITE_TIMEOUT_MS;
-    if (!local) return rewriteOne(content, instruction, signal, timeoutMs);
+    if (!local) return rewriteOne(content, instruction, signal, timeoutMs, config);
     const plan = improve.planLocalPieces(content, improve.LOCAL_MAX_INPUT_CHARS);
     if (plan.mode === "too_long") {
       const error = new Error("This note is too long for the local model.");
       error.code = "too_long";
       throw error;
     }
-    if (plan.mode === "full") return rewriteOne(content, instruction, signal, timeoutMs);
+    if (plan.mode === "full") return rewriteOne(content, instruction, signal, timeoutMs, config);
     const parts = [];
     for (const part of plan.parts) {
-      parts.push(await rewriteOne(part, instruction, signal, timeoutMs));
+      parts.push(await rewriteOne(part, instruction, signal, timeoutMs, config));
     }
     return {
       text: parts.map((part) => improve.cleanModelOutput(part.text)).filter(Boolean).join("\n\n"),
@@ -136,14 +136,14 @@ function createNoteSparkle(deps) {
     };
   }
 
-  function commit(pad, before, output, instruction, measured) {
+  function commit(pad, before, output, instruction, measured, config) {
     const snapshot = store.addPadVersion(pad.id, {
       content: before,
       label: "Before improvement",
       kind: "snapshot",
       instruction,
-      provider: providerName(),
-      model: modelName(),
+      provider: config.provider,
+      model: config.model,
     });
     const saved = store.savePad({ id: pad.id, title: pad.title, content: output });
     const usage = measured || {};
@@ -152,8 +152,8 @@ function createNoteSparkle(deps) {
       label: `Improvement: ${instruction}`,
       kind: "improve",
       instruction,
-      provider: providerName(),
-      model: modelName(),
+      provider: config.provider,
+      model: config.model,
       words: usage.words,
       prompt_tokens: usage.promptTokens,
       completion_tokens: usage.completionTokens,
@@ -180,8 +180,9 @@ function createNoteSparkle(deps) {
     const pad = ensurePad(payload);
     const job = beginJob(pad.id);
     if (!job) return fail("busy");
+    const config = completion.selection();
     try {
-      const done = await rewrite(content, instruction, job.ctrl.signal);
+      const done = await rewrite(content, instruction, job.ctrl.signal, config);
       const verdict = improve.validateImproved(content, instruction, done.text);
       if (!verdict.ok && verdict.code !== "preview") return fail("error");
       const output = improve.asMarkdown(verdict.output || "");
@@ -190,17 +191,17 @@ function createNoteSparkle(deps) {
         before: content,
         after: output,
         instruction,
-        model: modelName(),
+        model: config.model,
         usage: done.usage,
       });
-      const committed = commit(pad, content, output, instruction, measured);
+      const committed = commit(pad, content, output, instruction, measured, config);
       const result = {
         ok: true,
         id: committed.pad.id,
         content: output,
         snapshotId: committed.snapshotId,
-        provider: providerName(),
-        model: modelName(),
+        provider: config.provider,
+        model: config.model,
       };
       Promise.resolve().then(() => refreshSuggestions(committed.pad.id, output)).catch(() => {});
       return result;
@@ -218,6 +219,7 @@ function createNoteSparkle(deps) {
   }
 
   async function applyPreview(payload) {
+    const config = completion.selection();
     const instruction = String(payload.instruction || "").trim();
     const before = String(payload.content || "");
     const output = improve.cleanModelOutput(payload.output || "");
@@ -227,18 +229,18 @@ function createNoteSparkle(deps) {
       before,
       after: output,
       instruction,
-      model: modelName(),
+      model: config.model,
       usage: null,
     });
-    const committed = commit(pad, before, output, instruction, measured);
+    const committed = commit(pad, before, output, instruction, measured, config);
     Promise.resolve().then(() => refreshSuggestions(committed.pad.id, output)).catch(() => {});
     return {
       ok: true,
       id: committed.pad.id,
       content: output,
       snapshotId: committed.snapshotId,
-      provider: providerName(),
-      model: modelName(),
+      provider: config.provider,
+      model: config.model,
     };
   }
 
@@ -278,6 +280,7 @@ function createNoteSparkle(deps) {
     const job = beginJob(padId || `suggest-${Date.now()}`);
     if (!job) return { ...cached({ id: padId, content }), pending: true };
     const local = providerName() === "local";
+    const config = completion.selection();
     const timeoutMs = local ? improve.SUGGEST_TIMEOUT_LOCAL_MS : improve.SUGGEST_TIMEOUT_MS;
     const linked = improve.linkAbort(job.ctrl.signal, timeoutMs);
     try {
@@ -291,7 +294,7 @@ function createNoteSparkle(deps) {
         responseFormat: improve.suggestionResponseFormat(),
         jsonSchema: improve.SUGGESTION_SCHEMA,
         signal: linked.signal,
-      });
+      }, config);
       const parsed = improve.parseSuggestions(raw.text);
       if (padId) store.setPadSuggestions(padId, hash, parsed.suggestions);
       return { suggestions: parsed.suggestions, fresh: true, hash, fallback: parsed.usedFallback, id: padId || "" };

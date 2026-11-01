@@ -1,0 +1,66 @@
+[
+  {
+    "id": "german-request",
+    "input": "Ähm, ich wollte dich nur kurz bitten, bitte schick den Bericht morgen bis 14 Uhr an Anna. Also bitte morgen bis 14 Uhr. Vielen Dank!",
+    "expected": "Bericht morgen bis 14 Uhr an Anna schicken.",
+    "required": ["Bericht", "morgen", "14 Uhr", "Anna"],
+    "forbidden": ["bitte", "ähm", "vielen dank", "ich wollte"],
+    "maxRatio": 0.55
+  },
+  {
+    "id": "english-request",
+    "input": "Um, I just wanted to ask if you could please send the report to Alice by Friday at 2 pm. Basically, please send it to Alice by Friday at 2 pm. Thank you.",
+    "expected": "Send report to Alice by Friday at 2 pm.",
+    "required": ["report", "Alice", "Friday", "2 pm"],
+    "forbidden": ["please", "basically", "thank you", "I just wanted"],
+    "maxRatio": 0.55
+  },
+  {
+    "id": "german-conditions",
+    "input": "Vielleicht können wir am Freitag starten, aber nur wenn Anna zustimmt. Bitte nicht vorher anfangen. Also wirklich nur wenn Anna zustimmt.",
+    "expected": "Vielleicht Freitag starten, nur wenn Anna zustimmt. Nicht vorher anfangen.",
+    "required": ["Vielleicht", "Freitag", "nur wenn", "Anna", "zustimmt", "nicht", "vorher"],
+    "forbidden": ["bitte", "also wirklich"],
+    "maxRatio": 0.75
+  },
+  {
+    "id": "english-time-notation",
+    "input": "Um, I just wanted to say, please send 25 euros to Bob tomorrow at 9:15 am. Please do not send it to Max.",
+    "expected": "Send 25 euros to Bob tomorrow at 9:15 am. Do not send to Max.",
+    "required": ["25", "euros", "Bob", "tomorrow", "9:15 am", "not", "Max"],
+    "forbidden": ["please", "schicken", "Uhr", "morgen"],
+    "maxRatio": 0.8
+  },
+  {
+    "id": "genuine-question",
+    "input": "Kannst du Auto fahren?",
+    "expected": "Kannst du Auto fahren?",
+    "required": ["Kannst", "du", "Auto", "fahren", "?"],
+    "forbidden": [],
+    "maxRatio": 1
+  },
+  {
+    "id": "protected-details",
+    "input": "Please send 25 euros to ada@example.com via https://example.com/pay. Please keep `git status` and the exact words \"do not delete\". Please do not run `git reset`.",
+    "expected": "Send 25 euros to ada@example.com via https://example.com/pay. Keep `git status`, \"do not delete\". Do not run `git reset`.",
+    "required": ["25", "euros", "ada@example.com", "https://example.com/pay", "`git status`", "\"do not delete\"", "not", "`git reset`"],
+    "forbidden": ["please"],
+    "maxRatio": 0.9
+  },
+  {
+    "id": "minimal-fragment",
+    "input": "Morgen 14 Uhr.",
+    "expected": "Morgen 14 Uhr.",
+    "required": ["Morgen", "14 Uhr"],
+    "forbidden": [],
+    "maxRatio": 1
+  },
+  {
+    "id": "noise-only",
+    "input": "Ähm, äh.",
+    "expected": "",
+    "required": [],
+    "forbidden": [],
+    "maxRatio": 0
+  }
+]

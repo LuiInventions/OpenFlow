@@ -9,7 +9,7 @@ test('key verification proves model completion, deduplicates and caches without 
  const gate=createApiKeyStatus({readKey:()=> 'private-test-key',fetchImpl:async(url,init)=>{
   calls++;const body=JSON.parse(init.body);
   assert.equal(url,'https://api.openai.com/v1/chat/completions');
-  assert.equal(body.model,'gpt-6-luna');assert.equal(body.reasoning_effort,'none');assert.equal(body.temperature,undefined);
+  assert.equal(body.model,'gpt-5.4-nano');assert.equal(body.reasoning_effort,'none');assert.equal(body.temperature,undefined);
   assert.equal(body.messages[1].content,'Key check.');return reply();
  }});
  assert.equal(gate.ready(),false);
@@ -44,7 +44,7 @@ test('late validation of a replaced key cannot overwrite the current key status'
 
 test('Luna cleanup uses one compatible request and preserves medium reasoning quality',async()=>{
  let calls=0;
- const completion=createTextCompletion({readKey:()=> 'test-key',keyReady:()=>true,fetchImpl:async(url,init)=>{
+ const completion=createTextCompletion({store:{getSettings:()=>({noteImproveModel:'gpt-6-luna'})},readKey:()=> 'test-key',keyReady:()=>true,fetchImpl:async(url,init)=>{
   calls++;const body=JSON.parse(init.body);
   assert.equal(body.reasoning_effort,'medium');assert.equal(body.temperature,undefined);assert.equal(body.store,false);
   return reply();

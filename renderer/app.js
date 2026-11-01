@@ -679,7 +679,7 @@ function noteInfoIcon(active) {
 
 function noteModelChoice(settings) {
   const localId = settings.noteImproveLocalModel || "qwen2.5-3b-instruct-q4";
-  const openaiId = settings.noteImproveModel || "gpt-6-luna";
+  const openaiId = settings.noteImproveModel || "gpt-5.4-nano";
   const localRow = (settings.noteModels || []).find((model) => model.id === localId) || {
     id: localId,
     downloaded: false,
@@ -735,10 +735,12 @@ async function retryApiKey() {
 
 function improvementSwitches(settings, prefix = "", compact = false) {
   const ready = Boolean(settings.hasWorkingKey);
-  return `<div class="improvement-switches">${[
+  const options = (settings.textImprovementModels || []).map(model => `<option value="${esc(model.id)}"${model.id === settings.noteImproveModel ? " selected" : ""}>${esc(model.label)} · ${esc(model.tier)}</option>`).join("");
+  const modelRow = compact ? "" : `<div class="improvement-switch-row improvement-model-row"><div class="improvement-switch-copy"><div class="improvement-switch-heading"><label for="improvement-model"><strong>Text model</strong></label></div><p id="improvement-model-help">Used for both notes and dictation.</p></div><div class="improvement-model-select"><select id="improvement-model" data-improvement-model aria-describedby="improvement-model-help">${options}</select></div></div>`;
+  return `<div class="improvement-switches">${compact ? "" : '<div class="section-label">Notes &amp; Dictation</div>'}${[
     ["Improve Notes", "note-improve", settings.noteImproveEnabled !== false, compact ? "Polish and rewrite notes using the sparkle button." : "Rewrite and polish your notes with AI. Use the sparkle button inside a note."],
-    ["Improve Dictation", "dictation-cleanup", settings.dictationCleanupEnabled === true, compact ? "Clean up dictated text before pasting. Choose Clean or Polish in the bubble." : "Remove filler words, stutters, and accidental repetitions before pasting. Choose Original, Clean dictation, or Polish dictation from the bubble menu."],
-  ].map(([label, feature, enabled, description]) => `<div class="improvement-switch-row"><div class="improvement-switch-copy"><div class="improvement-switch-heading"><strong>${label}</strong><span class="api-only">(API only)</span></div><p id="${prefix}${feature}-help">${description}</p></div><button type="button" class="switch-btn" role="switch" data-${feature}-enabled aria-checked="${ready && enabled}" aria-label="${label}" aria-describedby="${prefix}${feature}-help"${ready ? "" : " disabled"}><span class="switch-thumb"></span></button></div>`).join("")}</div>`;
+    ["Improve Dictation", "dictation-cleanup", settings.dictationCleanupEnabled === true, compact ? "Compress or polish dictated text before pasting. Choose Compact or Polish in the bubble." : "Compress dictated text without losing meaningful information before pasting. Choose Original, Compact dictation, or Polish dictation from the bubble menu."],
+  ].map(([label, feature, enabled, description]) => `<div class="improvement-switch-row"><div class="improvement-switch-copy"><div class="improvement-switch-heading"><strong>${label}</strong><span class="api-only">(API only)</span></div><p id="${prefix}${feature}-help">${description}</p></div><button type="button" class="switch-btn" role="switch" data-${feature}-enabled aria-checked="${ready && enabled}" aria-label="${label}" aria-describedby="${prefix}${feature}-help"${ready ? "" : " disabled"}><span class="switch-thumb"></span></button></div>`).join("")}${modelRow}</div>`;
 }
 
 function paintCommandEditor() {
@@ -1153,6 +1155,13 @@ function paintConfirmModal() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  document.addEventListener("change", async event => {
+    const select = event.target.closest("[data-improvement-model]");
+    if (!select || !window.openflow) return;
+    select.disabled = true;
+    try { await window.openflow.dispatch("settings.save", { noteImproveModel: select.value }); }
+    finally { await load(); }
+  });
   const viewEl = document.querySelector("#view");
   if (viewEl) {
     viewEl.addEventListener("dragstart", (event) => {
@@ -2066,7 +2075,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const field = note ? "noteImproveEnabled" : "dictationCleanupEnabled";
       const enabled = !settings[field];
       const patch = { [field]: enabled };
-      if (!note && enabled && settings.dictationCleanupMode === "raw") patch.dictationCleanupMode = "fillers";
+      if (!note && enabled && settings.dictationCleanupMode === "raw") patch.dictationCleanupMode = "compact";
       await window.openflow.dispatch("settings.save", patch);
       await load();
       return;

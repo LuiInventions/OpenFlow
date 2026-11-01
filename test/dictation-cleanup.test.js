@@ -7,13 +7,13 @@ const os = require("node:os");
 const path = require("node:path");
 const { createStore } = require("../src/store");
 const { createTextCompletion } = require("../src/text-completion");
-const { createDictationCleanup, CLEANUP_SYSTEM, parseCleaned, pieces } = require("../src/dictation-cleanup");
+const { createDictationCleanup, COMPACT_SYSTEM, parseCleaned, pieces } = require("../src/dictation-cleanup");
 const { commitDictation } = require("../src/dictation");
 const { createLlamaHost } = require("../src/llama-host");
 
 function enabledStore() {
   const store = createStore(":memory:");
-  store.updateSettings({ dictationCleanupEnabled: true, dictationCleanupMode: "fillers" });
+  store.updateSettings({ dictationCleanupEnabled: true, dictationCleanupMode: "compact" });
   return store;
 }
 
@@ -26,7 +26,7 @@ test("disabled and raw modes perform no model request; disabling clears selectio
     assert.equal((await cleanup.clean("Ähm, hallo.")).text, "Ähm, hallo.");
     store.updateSettings({ dictationCleanupEnabled: true });
     assert.equal((await cleanup.clean("Ähm, hallo.")).status, "raw");
-    store.updateSettings({ dictationCleanupMode: "fillers" });
+    store.updateSettings({ dictationCleanupMode: "compact" });
     store.updateSettings({ dictationCleanupEnabled: false });
     assert.equal(store.getSettings().dictationCleanupMode, "raw");
     const reloaded = createStore(file);
@@ -35,7 +35,7 @@ test("disabled and raw modes perform no model request; disabling clears selectio
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("cleanup always uses GPT-6 Luna and the cleanup-only system prompt", async () => {
+test("compact defaults to GPT-5.4 nano and uses the exact compact system prompt", async () => {
   const store = enabledStore();
   store.updateSettings({ noteImproveProvider: "openai", noteImproveModel: "gpt-4.1-mini" });
   let calls = 0;
@@ -43,8 +43,9 @@ test("cleanup always uses GPT-6 Luna and the cleanup-only system prompt", async 
     calls++;
     assert.equal(url, "https://api.openai.com/v1/chat/completions");
     const body = JSON.parse(init.body);
-    assert.equal(body.model, "gpt-6-luna");
-    assert.equal(body.messages[0].content, CLEANUP_SYSTEM);
+    assert.equal(body.model, "gpt-5.4-nano");
+    assert.equal(body.messages[0].content, COMPACT_SYSTEM);
+    assert.match(body.messages[1].content, /^Dictation content \(keep its language and literal details; do not translate\):\n/);
     assert.equal(body.response_format.json_schema.name, "dictation_cleanup");
     assert.match(body.messages[1].content, /Ähm/);
     return { ok: true, json: async () => ({ choices: [{ message: { content: '{"text":"Wir treffen uns um 14:30 Uhr."}' } }] }) };
@@ -64,7 +65,7 @@ test("legacy local settings cannot enable local cleanup or bypass the API key", 
     completeLocal() { throw new Error("Must not use local inference"); },
     fetchImpl() { throw new Error("Must not call OpenAI without a key"); },
   });
-  assert.deepEqual(completion.selection(), { provider: "openai", model: "gpt-6-luna" });
+  assert.deepEqual(completion.selection(), { provider: "openai", model: "gpt-5.4-nano" });
   assert.equal(completion.usable(), false);
   const result = await createDictationCleanup({ store, completion }).clean("Ähm, bitte nicht absagen.");
   assert.equal(result.status, "fallback");
@@ -191,6 +192,7 @@ test("polish has a separate prompt, uses one request, retains details and record
   let calls=0;
   const completion={selection:()=>({provider:'openai',model:'gpt-6-luna'}),complete:async request=>{
     calls++;assert.equal(request.system,POLISH_SYSTEM);
+    assert.match(request.user,/^Diktat \(nur Inhalt\):\n/);
     return {text:JSON.stringify({text:'Der Termin bleibt am Freitag um 14 Uhr. Bitte nicht absagen.'})};
   }};
   const result=await createDictationCleanup({store,completion}).clean('Ähm, ich ich wollte dir sagen, der Termin bleibt am Freitag um 14 Uhr und bitte nicht absagen.');
@@ -222,7 +224,7 @@ test("long cleanup overlaps at most two pieces, preserves order and paragraph se
 });
 
 test("both cleanup levels protect uncertainty, negations, facts and literal code",()=>{
-  for(const mode of ['fillers','polished']){
+  for(const mode of ['compact','polished']){
     assert.throws(()=>parseCleaned('Maybe send 14 euros.',JSON.stringify({text:'Send 14 euros.'}),mode));
     assert.throws(()=>parseCleaned('Please run `git status` now.',JSON.stringify({text:'Please run `git reset` now.'}),mode));
     assert.throws(()=>parseCleaned('Bitte nicht absagen um 14 Uhr.',JSON.stringify({text:'Bitte absagen um 14 Uhr.'}),mode));
@@ -234,4 +236,76 @@ test("long leading whitespace cannot stall cleanup splitting",()=>{
   const input=' '.repeat(7000)+'Hello.';
   assert.equal(pieces(input).join(''),input);
   assert.ok(pieces(input).every(part=>part.length>0));
+});
+
+test("compact prompt matches the supplied artifact and Polish keeps its exact prompt and version", () => {
+  const { POLISH_SYSTEM, PROMPT_VERSION, CLEANUP_MODES, active } = require('../src/dictation-cleanup');
+  assert.equal(COMPACT_SYSTEM, fs.readFileSync(path.join(__dirname, '../docs/dictation-compact-system-prompt.txt'), 'utf8').replace(/\r\n/g, '\n').trim());
+  assert.equal(POLISH_SYSTEM, fs.readFileSync(path.join(__dirname, '../docs/dictation-polish-system-prompt.txt'), 'utf8').replace(/\r\n/g, '\n').trim());
+  assert.equal(PROMPT_VERSION, '2026-11-01.2');
+  assert.equal(require('../src/dictation-cleanup').COMPACT_PROMPT_VERSION, '2026-11-01.5');
+  assert.deepEqual(CLEANUP_MODES, ['compact', 'polished']);
+  assert.equal(active({dictationCleanupEnabled:true, dictationCleanupMode:'fillers'}), false);
+});
+
+test("compact accepts strong meaning-preserving compression without a fixed ratio and records its prompt version", async () => {
+  const { COMPACT_PROMPT_VERSION } = require('../src/dictation-cleanup');
+  const original = 'I just wanted to say, basically, you know, please send the report to Alice tomorrow. '.repeat(12).trim();
+  const text = 'Send report to Alice tomorrow.';
+  assert.ok(text.length < original.length * 0.1);
+  const store = enabledStore();
+  let calls = 0;
+  const completion = { selection: () => ({provider:'openai', model:'gpt-6-luna'}), complete: async request => {
+    calls++;
+    assert.equal(request.system, COMPACT_SYSTEM);
+    return {text:JSON.stringify({text})};
+  }};
+  const result = await createDictationCleanup({store, completion}).clean(original);
+  assert.equal(result.status, 'cleaned');
+  assert.equal(result.text, text);
+  assert.equal(result.cleanupMode, 'compact');
+  assert.equal(result.promptVersion, COMPACT_PROMPT_VERSION);
+  assert.equal(store.listDictationUsage()[0].mode, 'compact');
+  assert.equal(calls, 1);
+  assert.throws(() => parseCleaned(original, JSON.stringify({text}), 'polished'));
+});
+
+test("compact requires exactly one JSON string field and preserves quotes, code, URLs, emails and numbers", () => {
+  for (const response of ['{"text":"Hello.","extra":true}', '{"text":null}', '```json\n{"text":"Hello."}\n```', '[]', '{"text":""}']) {
+    assert.throws(() => parseCleaned('Hello.', response, 'compact'));
+  }
+  const original = 'Um, send 14 euros to ada@example.com via https://example.com/pay. Keep `git status` and "do not delete".';
+  const kept = original.replace('Um, send', 'Send');
+  assert.equal(parseCleaned(original, JSON.stringify({text:kept})), kept);
+  for (const [before, after] of [['14','15'], ['ada@example.com','bob@example.com'], ['https://example.com/pay','https://example.com'], ['git status','git reset'], ['do not delete','do not remove']]) {
+    assert.throws(() => parseCleaned(original, JSON.stringify({text:kept.replace(before, after)})));
+  }
+  for (const text of ['Hello.', 'Hallo.', 'Bonjour.', 'Maybe tomorrow.']) {
+    assert.equal(parseCleaned(text, JSON.stringify({text})), text);
+  }
+});
+
+test("changing from Polish to Compact discards the pending Polish response", async () => {
+  const store = enabledStore();
+  store.updateSettings({dictationCleanupMode:'polished'});
+  let finish;
+  const completion = {selection:()=>({provider:'openai'}), complete:()=>new Promise(resolve=>{finish=resolve})};
+  const pending = createDictationCleanup({store,completion}).clean('Ähm, Hallo.');
+  store.updateSettings({dictationCleanupMode:'compact'});
+  finish({text:'{"text":"Hallo."}'});
+  assert.deepEqual(await pending, {text:'Ähm, Hallo.', status:'raw'});
+});
+
+test("compact accepts terse fixture results without falling back to the padded original", async () => {
+  for (const sample of require('./fixtures/compact-dictation.json')) {
+    const store = enabledStore();
+    const completion = {selection:()=>({provider:'openai',model:'gpt-6-luna'}), complete:async()=>({text:JSON.stringify({text:sample.expected})})};
+    const pasted = [];
+    const result = await commitDictation({store,cleanup:createDictationCleanup({store,completion}),pasteText:async text=>pasted.push(text)},sample.input,
+      {text:sample.input,usedPhrases:[],followUps:[]},{paste:true,sttEngine:'parakeet'});
+    assert.equal(result.history.cleanup_status,'cleaned',sample.id);
+    assert.equal(result.text,sample.expected,sample.id);
+    assert.deepEqual(pasted,sample.expected?[sample.expected]:[],sample.id);
+    assert.equal(result.history.asr_text,sample.input,sample.id);
+  }
 });

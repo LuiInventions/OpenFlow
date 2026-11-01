@@ -25,7 +25,7 @@ test("rewrite and suggestion prompts stay verbatim", () => {
   );
   assert.equal(improve.REWRITE_TEMPERATURE, 0.25);
   assert.equal(improve.SUGGEST_TEMPERATURE, 0.7);
-  assert.equal(improve.normalizeOpenAIModel("nope"), "gpt-6-luna");
+  assert.equal(improve.normalizeOpenAIModel("nope"), "gpt-5.4-nano");
 });
 
 test("instruction word limit counts without cutting the text", () => {
@@ -257,7 +257,7 @@ test("Luna preserves medium reasoning without the rejected temperature round tri
   assert.equal(store.getPad(result.id).content, result.content);
 });
 
-test("notes use GPT-6 Luna even when an older model was saved", async () => {
+test("notes default to GPT-5.4 nano when an unsupported older model was saved", async () => {
   const store = createStore(":memory:");
   store.updateSettings({
     noteImproveEnabled: true,
@@ -284,8 +284,8 @@ test("notes use GPT-6 Luna even when an older model was saved", async () => {
     },
   });
   const result = await sparkle.improve({ title: "Plan", content: ORIGINAL, instruction: "Polish" });
-  assert.equal(seen, "gpt-6-luna");
-  assert.equal(result.model, "gpt-6-luna");
+  assert.equal(seen, "gpt-5.4-nano");
+  assert.equal(result.model, "gpt-5.4-nano");
   assert.equal(result.ok, true);
 });
 
@@ -302,7 +302,7 @@ test("legacy local note settings require a key and never run a local model", asy
   assert.equal(result.ok, false);
   assert.equal(result.code, "unconfigured");
   assert.equal(sparkle.providerName(), "openai");
-  assert.equal(sparkle.modelName(), "gpt-6-luna");
+  assert.equal(sparkle.modelName(), "gpt-5.4-nano");
 });
 
 test("note improvement without an API key leaves the note unchanged", async () => {

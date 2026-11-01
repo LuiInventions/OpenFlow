@@ -8,9 +8,9 @@ const {createDictationCleanup,legacyDictationUsage}=require('../src/dictation-cl
 const {commitDictation}=require('../src/dictation');
 
 test('dictation usage captures API token totals including reasoning and cached input before validation',async()=>{
- for(const mode of ['fillers','polished']){
-  const store=createStore(':memory:');store.updateSettings({dictationCleanupEnabled:true,dictationCleanupMode:mode});
-  const completion=createTextCompletion({readKey:()=> 'test-key',fetchImpl:async()=>({ok:true,json:async()=>({choices:[{message:{content:'{"text":"Bitte nicht absagen um 14 Uhr."}'}}],usage:{prompt_tokens:100,completion_tokens:50,prompt_tokens_details:{cached_tokens:20},completion_tokens_details:{reasoning_tokens:30}}})})});
+ for(const mode of ['compact','polished']){
+  const store=createStore(':memory:');store.updateSettings({noteImproveModel:'gpt-6-luna',dictationCleanupEnabled:true,dictationCleanupMode:mode});
+  const completion=createTextCompletion({store,readKey:()=> 'test-key',fetchImpl:async()=>({ok:true,json:async()=>({choices:[{message:{content:'{"text":"Bitte nicht absagen um 14 Uhr."}'}}],usage:{prompt_tokens:100,completion_tokens:50,prompt_tokens_details:{cached_tokens:20},completion_tokens_details:{reasoning_tokens:30}}})})});
   const cleanup=createDictationCleanup({store,completion});
   const original='Ähm, bitte nicht absagen um 14 Uhr.';
   await commitDictation({store,cleanup,pasteText:async()=>{}},original,{text:original,usedPhrases:[],followUps:[]},{paste:true,sttEngine:'parakeet'});
@@ -22,7 +22,7 @@ test('dictation usage captures API token totals including reasoning and cached i
 });
 
 test('rejected and late cancelled model outputs still retain consumed usage; raw mode consumes none',async()=>{
- const store=createStore(':memory:');store.updateSettings({dictationCleanupEnabled:true,dictationCleanupMode:'fillers'});
+ const store=createStore(':memory:');store.updateSettings({dictationCleanupEnabled:true,dictationCleanupMode:'compact'});
  let finish;
  const completion={selection:()=>({provider:'openai',model:'gpt-6-luna'}),complete:()=>new Promise(r=>finish=r)};
  const cleanup=createDictationCleanup({store,completion});
@@ -39,8 +39,8 @@ test('combined API report sums notes and both dictation modes without counting c
  {kind:'improve',provider:'openai',pad_id:'n',seq:2,content:'done',created_at:date,words:4,model:'gpt-6-luna',prompt_tokens:1000,completion_tokens:500,cost_usd:0.00035},
  {kind:'improve',provider:'local',pad_id:'l',seq:3,created_at:date,words:100,model:'qwen2.5-3b-instruct-q4',prompt_tokens:1000,completion_tokens:500,cost_usd:0}];
  const rows=[
- {id:'a',run_id:'clean',provider:'openai',mode:'fillers',created_at:date,words:4,prompt_tokens:100,completion_tokens:50,cached_tokens:0,model:'gpt-6-luna'},
- {id:'b',run_id:'clean',provider:'openai',mode:'fillers',created_at:date,words:6,prompt_tokens:200,completion_tokens:100,cached_tokens:0,model:'gpt-6-luna'},
+ {id:'a',run_id:'clean',provider:'openai',mode:'compact',created_at:date,words:4,prompt_tokens:100,completion_tokens:50,cached_tokens:0,model:'gpt-6-luna'},
+ {id:'b',run_id:'clean',provider:'openai',mode:'compact',created_at:date,words:6,prompt_tokens:200,completion_tokens:100,cached_tokens:0,model:'gpt-6-luna'},
  {id:'c',run_id:'polish',provider:'openai',mode:'polished',created_at:date,words:8,prompt_tokens:80,completion_tokens:20,cached_tokens:0,model:'gpt-6-luna'},
  {id:'old',run_id:'old',provider:'openai',created_at:new Date(2026,8,1).toISOString(),words:900,prompt_tokens:50000,completion_tokens:1000},
  {id:'local',provider:'local',created_at:date,words:900,prompt_tokens:50000,completion_tokens:1000}];
@@ -55,6 +55,12 @@ test('legacy successful cloud cleanup is estimated with its actual prompt, exclu
  const base={id:'legacy',created_at:now.toISOString(),cleanup_status:'cleaned',cleanup_provider:'openai',cleanup_mode:'polished',cleanup_model:'gpt-6-luna',prepared_text:'Ähm, bitte nicht absagen um 14 Uhr.',formatted_text:'Bitte nicht absagen um 14 Uhr.'};
  const rows=legacyDictationUsage([base,{...base,id:'raw',cleanup_status:'raw'},{...base,id:'local',cleanup_provider:'local'},{...base,id:'metered',cleanup_run_id:'run'}]);
  assert.equal(rows.length,1);assert.equal(rows[0].tokens_estimated,true);assert.ok(rows[0].prompt_tokens>0);
+ const historical=legacyDictationUsage([{...base,cleanup_mode:'fillers'}])[0];
+ assert.equal(historical.mode,'fillers');
+ assert.equal(historical.prompt_tokens,261+flow.estimateTokens(`Diktat (nur Inhalt):\n${JSON.stringify(base.prepared_text)}`));
+ const compact=legacyDictationUsage([{...base,cleanup_mode:'compact'}])[0];
+ assert.equal(compact.mode,'compact');
+ assert.ok(compact.prompt_tokens>historical.prompt_tokens,'Compact estimates use the new full prompt');
  const report=flow.noteAndDictationUsageReport([],rows,now);assert.equal(report.estimated,true);assert.equal(report.dictations,1);assert.ok(report.costUsd>0);
 });
 
@@ -63,7 +69,7 @@ test('usage survives persistence and transcript deletion without retaining dicta
  try{
   const file=path.join(dir,'data.json');const store=createStore(file);
   const history=store.addHistory({asr_text:'private dictation'});
-  store.addDictationUsage({run_id:'r',provider:'openai',model:'gpt-6-luna',mode:'fillers',words:2,promptTokens:100,completionTokens:20,cachedTokens:0,costUsd:0.00002,tokensEstimated:false});
+  store.addDictationUsage({run_id:'r',provider:'openai',model:'gpt-6-luna',mode:'compact',words:2,promptTokens:100,completionTokens:20,cachedTokens:0,costUsd:0.00002,tokensEstimated:false});
   store.deleteHistory(history.id);const loaded=createStore(file);
   assert.equal(loaded.listDictationUsage().length,1);assert.equal(loaded.listHistory().length,0);
   assert.doesNotMatch(fs.readFileSync(file,'utf8'),/private dictation/);

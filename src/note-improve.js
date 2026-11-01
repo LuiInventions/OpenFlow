@@ -22,8 +22,13 @@ const SUGGEST_SYSTEM = [
 ].join("\n");
 
 const FALLBACK_SUGGESTIONS = ["Polish", "Shorten", "As a list"];
-const OPENAI_MODELS = ["gpt-6-luna", "gpt-4.1-mini", "gpt-4o-mini"];
-const DEFAULT_OPENAI_MODEL = "gpt-6-luna";
+const TEXT_MODELS = [
+  { id: "gpt-5.4-nano", label: "GPT-5.4 nano", tier: "Fast", reasoning: "none" },
+  { id: "gpt-6-luna", label: "GPT-6 Luna", tier: "Balanced", reasoning: "medium" },
+  { id: "gpt-6-sol", label: "GPT-6 Sol", tier: "Powerful", reasoning: "medium" },
+];
+const OPENAI_MODELS = TEXT_MODELS.map(model => model.id);
+const DEFAULT_OPENAI_MODEL = "gpt-5.4-nano";
 const REWRITE_TEMPERATURE = 0.25;
 const SUGGEST_TEMPERATURE = 0.7;
 const MAX_INSTRUCTION_WORDS = 10;
@@ -378,6 +383,7 @@ module.exports = {
   SUGGEST_SYSTEM,
   FALLBACK_SUGGESTIONS,
   OPENAI_MODELS,
+  TEXT_MODELS,
   DEFAULT_OPENAI_MODEL,
   REWRITE_TEMPERATURE,
   SUGGEST_TEMPERATURE,

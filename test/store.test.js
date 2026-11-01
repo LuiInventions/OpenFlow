@@ -59,3 +59,27 @@ test("folders, meetings, and file reload keep local data", () => {
   reloaded.deleteFolder(folder.id);
   assert.equal(reloaded.listMeetings()[0].folder_id, "");
 });
+
+test("old dictation selections migrate to Compact while Original, Polish and disabled settings survive reload", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'openflow-compact-'));
+  try {
+    const file = path.join(dir, 'profile.json');
+    for (const [mode, enabled, expected] of [
+      ['fillers', true, 'compact'], ['polished', true, 'polished'],
+      ['raw', true, 'raw'], ['compact', true, 'compact'],
+      ['fillers', false, 'raw'], ['unknown', true, 'raw'],
+    ]) {
+      const history = [{id:'old', cleanup_mode:'fillers', formatted_text:'Historical text.'}];
+      fs.writeFileSync(file, JSON.stringify({settings:{dictationCleanupEnabled:enabled, dictationCleanupMode:mode}, history}));
+      const store = createStore(file);
+      assert.equal(store.getSettings().dictationCleanupMode, expected);
+      assert.equal(store.getSettings().dictationCleanupEnabled, enabled);
+      assert.deepEqual(store.listHistory(), history);
+      store.updateSettings({sounds:false});
+      assert.equal(createStore(file).getSettings().dictationCleanupMode, expected);
+    }
+    const store = createStore(':memory:');
+    store.updateSettings({dictationCleanupEnabled:true, dictationCleanupMode:'fillers'});
+    assert.equal(store.getSettings().dictationCleanupMode, 'raw', 'Removed mode cannot be selected again');
+  } finally { fs.rmSync(dir, {recursive:true, force:true}); }
+});

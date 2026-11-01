@@ -1,10 +1,11 @@
 "use strict";
 
 const providers = require("./providers");
+const { normalizeOpenAIModel, TEXT_MODELS } = require("./note-improve");
 
 function createTextCompletion(deps) {
   function selection() {
-    return { provider: "openai", model: "gpt-6-luna" };
+    return { provider: "openai", model: normalizeOpenAIModel(deps.store?.getSettings().noteImproveModel) };
   }
 
   function usable() {
@@ -15,8 +16,9 @@ function createTextCompletion(deps) {
     return deps.readKey && deps.readKey() ? "A working OpenAI API key must be verified in Settings." : "The OpenAI key is missing.";
   }
 
-  async function complete(request) {
-    const config = selection();
+  async function complete(request, selected = selection()) {
+    // A run keeps its original model even if Settings changes while it waits.
+    const config = { provider: "openai", model: normalizeOpenAIModel(selected.model) };
     if (!usable(config)) throw new Error(blockedMessage(config));
     const apiKey = deps.readKey();
     const apiRequest = providers.chatRequest({
@@ -24,11 +26,11 @@ function createTextCompletion(deps) {
       system: request.system, user: request.user, temperature: request.temperature,
       responseFormat: request.responseFormat,
     });
-    // Preserve Luna's default reasoning quality and avoid the rejected
-    // temperature request/retry that otherwise adds a full network round trip.
+    // Preserve Luna/Sol reasoning quality and use Nano without reasoning.
+    // Avoid an unsupported temperature parameter and its extra round trip.
     const requestBody = JSON.parse(apiRequest.init.body);
     delete requestBody.temperature;
-    requestBody.reasoning_effort = "medium";
+    requestBody.reasoning_effort = TEXT_MODELS.find(model => model.id === config.model).reasoning;
     requestBody.store = false;
     apiRequest.init.body = JSON.stringify(requestBody);
     const fetchImpl = deps.fetchImpl || fetch;

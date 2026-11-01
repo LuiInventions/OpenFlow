@@ -19,7 +19,7 @@ const { createDictationCleanup, active: cleanupActive, legacyDictationUsage } = 
 const { commitDictation } = require("../src/dictation");
 const { createModelLibrary } = require("../src/note-models");
 const { createLlamaHost, llamaRuntimeAvailable } = require("../src/llama-host");
-const { normalizeOpenAIModel, normalizeLocalModel } = require("../src/note-improve");
+const { normalizeOpenAIModel, normalizeLocalModel, TEXT_MODELS } = require("../src/note-improve");
 
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 
@@ -1019,6 +1019,7 @@ function publicSettings() {
     noteImproveEnabled: ensureApiKeyStatus().ready() && settings.noteImproveEnabled !== false,
     dictationCleanupEnabled: ensureApiKeyStatus().ready() && settings.dictationCleanupEnabled === true,
     textModelReady: ensureTextCompletion().usable(),
+    textImprovementModels: TEXT_MODELS,
     noteModels: noteModels ? noteModels.statusList() : [],
     noteDisk: noteModels ? noteModels.disk() : { freeBytes: null },
     llamaRuntime: llamaRuntimeAvailable(),
@@ -1608,7 +1609,8 @@ const actions = {
       writeKey(String(payload.apiKey || "").trim());
       await ensureApiKeyStatus().validate(true);
     }
-    const patch = { noteImproveProvider: "openai", noteImproveModel: "gpt-6-luna", provider: "openai", sttModel: "", ttsModel: "", ttsVoice: "", textModel: "" };
+    const patch = { noteImproveProvider: "openai", provider: "openai", sttModel: "", ttsModel: "", ttsVoice: "", textModel: "" };
+    if (payload && Object.prototype.hasOwnProperty.call(payload, "noteImproveModel")) patch.noteImproveModel = normalizeOpenAIModel(payload.noteImproveModel);
     if (payload && (payload.sttEngine === "parakeet" || payload.sttEngine === "openai")) {
       patch.sttEngine = payload.sttEngine;
     }
@@ -1655,7 +1657,7 @@ const actions = {
     if (payload && typeof payload.dictationCleanupEnabled === "boolean") {
       patch.dictationCleanupEnabled = payload.dictationCleanupEnabled;
     }
-    if (payload && ["raw", "fillers", "polished"].includes(payload.dictationCleanupMode)) {
+    if (payload && ["raw", "compact", "polished"].includes(payload.dictationCleanupMode)) {
       patch.dictationCleanupMode = payload.dictationCleanupMode;
     }
     if (!ensureApiKeyStatus().ready()) {

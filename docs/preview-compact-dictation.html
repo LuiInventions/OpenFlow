@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OpenFlow — Compact Dictation</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:1200px;height:480px;overflow:hidden;background:#f5f4f0;color:#1a1a1a;font-family:"Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{padding:32px;display:grid;grid-template-columns:410px 1fr;gap:36px;align-items:center}
+.visual{height:416px;background:#fcfcfb;border:1px solid #e5e1d7;border-radius:24px;display:flex;align-items:center;justify-content:center;padding:16px}
+.visual img{display:block;width:378px;max-height:376px;object-fit:contain}
+.copy{min-width:0}.eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#77736b;margin-bottom:10px}h1{font-family:Georgia,"Palatino Linotype",serif;font-size:43px;font-weight:500;letter-spacing:-.03em;line-height:1.1;margin:0 0 10px}
+.subtitle{font-size:17px;color:#71716e;margin:0 0 22px}
+.example{background:#fcfcfb;border:1px solid #e5e1d7;border-radius:14px;padding:14px 18px;margin-top:12px}
+.label{font-size:10px;font-weight:650;letter-spacing:.08em;color:#878683;margin-bottom:8px;text-transform:uppercase;display:flex;align-items:center;gap:7px}
+.example p{margin:0;font-size:17px;line-height:1.5}.filler{color:#9a968f;text-decoration:line-through;text-decoration-color:#bfb8ac}
+.result{background:#fff;border-color:#b7b09f}.result .label{color:#1a1a1a}.result p{font-size:22px;line-height:1.35}.result svg{width:12px;height:12px}.footnote{font-size:12px;color:#77736b;margin:16px 0 0;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="visual"><img src="compact-dictation-menu.png" alt="Actual OpenFlow bubble and compact Dictation settings menu with Original, Polish dictation, and Compact dictation selected."></div>
+<div class="copy"><div class="eyebrow">New in OpenFlow</div><h1>Compact Dictation</h1><p class="subtitle">Same meaning. Far fewer words.</p>
+<div class="example"><div class="label">Spoken dictation</div><p><span class="filler">Um, I just wanted to ask if you could please</span> send the report to Alice by Friday at 2 pm. <span class="filler">Basically, please send it to Alice by Friday at 2 pm. Thank you.</span></p></div>
+<div class="example result"><div class="label"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8 3 3 7-7"/></svg>Compact dictation</div><p>Send report to <strong>Alice</strong> by <strong>Friday at 2 pm</strong>.</p></div>
+<p class="footnote">Fillers, pleasantries and repetition removed.<br>Names, deadlines and instructions preserved.</p>
+</div>
+</body></html>

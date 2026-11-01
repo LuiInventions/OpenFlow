@@ -175,10 +175,14 @@ function localUsageReport(history, now = new Date()) {
 
 // Standard OpenAI list prices, USD per 1M tokens, checked 2026-11-01.
 // https://developers.openai.com/api/docs/models/gpt-6-luna
+// https://developers.openai.com/api/docs/models/gpt-6-sol
+// https://developers.openai.com/api/docs/models/gpt-5.4-nano
 // Short context is at most 272K input tokens. Cached input uses the cached rate when the API reports it.
 // This is an estimate, not an invoice: batch, flex, fast, and regional premiums are not applied.
 const NOTE_IMPROVE_PRICES = {
+  "gpt-5.4-nano": { input: 0.20, cached: 0.02, output: 1.25 },
   "gpt-6-luna": { input: 0.10, cached: 0.01, output: 0.50, longInput: 0.20, longCached: 0.02, longOutput: 0.75, longAt: 272000 },
+  "gpt-6-sol": { input: 2.00, cached: 0.20, output: 10.00, longInput: 4.00, longCached: 0.40, longOutput: 15.00, longAt: 272000 },
   "gpt-4.1-mini": { input: 0.40, cached: 0.10, output: 1.60 },
   "gpt-4o-mini": { input: 0.15, cached: 0.075, output: 0.60 },
 };

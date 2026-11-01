@@ -2,6 +2,7 @@
 
 const crypto = require("node:crypto");
 const providers = require("./providers");
+const { DEFAULT_OPENAI_MODEL } = require("./note-improve");
 
 function createApiKeyStatus({ readKey, fetchImpl = fetch, onChange = () => {}, retryDelay = 400 }) {
   let fingerprint = "";
@@ -27,7 +28,7 @@ function createApiKeyStatus({ readKey, fetchImpl = fetch, onChange = () => {}, r
     if (!key) { publish({ state: "missing", message: "" }); return status(); }
     publish({ state: "checking", message: "Checking API key…" });
     const work = (async () => {
-      const request = providers.chatRequest({ provider: "openai", apiKey: key, model: "gpt-6-luna", system: "Return exactly OK.", user: "Key check." });
+      const request = providers.chatRequest({ provider: "openai", apiKey: key, model: DEFAULT_OPENAI_MODEL, system: "Return exactly OK.", user: "Key check." });
       const body = JSON.parse(request.init.body);
       delete body.temperature;
       Object.assign(body, { reasoning_effort: "none", max_completion_tokens: 16, store: false });

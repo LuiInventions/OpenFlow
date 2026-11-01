@@ -24,8 +24,8 @@
     .pill #cleanup-toggle::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 1px; background: #333; }
     .pill #cleanup-toggle:hover, .pill #cleanup-toggle[aria-expanded="true"] { background: #202020; color: #fff; }
     .pill #cleanup-toggle::after { display: none; }
-    #cleanup-toggle svg { transition: transform .16s ease; }
-    #cleanup-toggle[aria-expanded="true"] svg { transform: translateY(-1px); }
+    #cleanup-toggle svg { transform: none; transition: stroke-width .16s ease; }
+    #cleanup-toggle:hover svg, #cleanup-toggle[aria-expanded="true"] svg { stroke-width: 1.8; }
     #cleanup-toggle.is-cleaned { color: #fff; }
     .pill #cleanup-toggle:focus-visible { outline: 1px solid #bfbfbd; outline-offset: -3px; }
     .row, .menu label { box-sizing: border-box; display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; background: transparent; border: 0; color: inherit; font: inherit; font-size: 13.5px; text-align: left; padding: 8px 10px; border-radius: 10px; }
@@ -129,8 +129,8 @@
     <div id="menu" class="menu cleanup-menu" role="menu" aria-labelledby="cleanup-menu-title" hidden>
       <div class="cleanup-title" id="cleanup-menu-title" role="heading" aria-level="2">Dictation settings</div>
       <button class="row" type="button" role="menuitemradio" data-cleanup-mode="raw" aria-checked="true"><span class="cleanup-label">Original</span><span class="mark" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8 3 3 6-6"/></svg></span></button>
-      <button class="row" type="button" role="menuitemradio" data-cleanup-mode="fillers" aria-checked="false"><span class="cleanup-label">Clean dictation</span><span class="mark" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8 3 3 6-6"/></svg></span></button>
       <button class="row" type="button" role="menuitemradio" data-cleanup-mode="polished" aria-checked="false"><span class="cleanup-label">Polish dictation</span><span class="mark" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8 3 3 6-6"/></svg></span></button>
+      <button class="row" type="button" role="menuitemradio" data-cleanup-mode="compact" aria-checked="false"><span class="cleanup-label">Compact dictation</span><span class="mark" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8 3 3 6-6"/></svg></span></button>
     </div>
     <button id="grip" type="button" aria-label="OpenFlow"><span></span></button>
     <div class="pill" id="pill" hidden>
@@ -434,7 +434,7 @@
       cleanupToggle.hidden = !open || !cleanupEnabled;
       cleanupToggle.setAttribute("aria-expanded", String(menuOpen));
       cleanupToggle.classList.toggle("is-cleaned", cleanupMode !== "raw");
-      cleanupToggle.dataset.tooltip = cleanupMode === "polished" ? "Polish dictation" : cleanupMode === "fillers" ? "Clean dictation" : "Original";
+      cleanupToggle.dataset.tooltip = cleanupMode === "polished" ? "Polish dictation" : cleanupMode === "compact" ? "Compact dictation" : "Original";
       menu.hidden = !open || !menuOpen;
       mic.setAttribute("aria-pressed", mode === "listening" ? "true" : "false");
       document.querySelectorAll("[data-cleanup-mode]").forEach(button => {
@@ -940,7 +940,7 @@
 
     function applyCleanupConfig(config) {
       cleanupEnabled = config.dictationCleanupEnabled === true;
-      cleanupMode = cleanupEnabled && ["fillers", "polished"].includes(config.dictationCleanupMode) ? config.dictationCleanupMode : "raw";
+      cleanupMode = cleanupEnabled && ["compact", "polished"].includes(config.dictationCleanupMode) ? config.dictationCleanupMode : "raw";
       textModelReady = Boolean(config.textModelReady);
       if (!cleanupEnabled) menuOpen = false;
     }

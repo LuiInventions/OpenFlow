@@ -39,6 +39,14 @@ button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; background: transparent; border: 0; }
 :focus-visible { outline: 2px solid var(--vast-950); outline-offset: 2px; }
 .improvement-switches { margin-top: 18px; padding-top: 6px; border-top: 1px solid var(--line); }
+.improvement-switches > .section-label { margin: 12px 0 4px; }
+.improvement-model-row { margin-top: 4px; }
+.improvement-model-select { position: relative; flex: 0 0 196px; }
+.improvement-model-select select { appearance: none; width: 100%; min-height: 36px; padding: 8px 30px 8px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--soft); color: var(--fg); font: inherit; font-size: 12px; cursor: pointer; }
+.improvement-model-select::after { content: ""; position: absolute; right: 13px; top: 14px; width: 6px; height: 6px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(45deg); pointer-events: none; }
+.improvement-model-select select:hover { border-color: var(--sand-700); }
+.improvement-model-select select:focus-visible { outline: 1px solid var(--sand-700); outline-offset: 2px; }
+@media (max-width: 720px) { .improvement-model-row { flex-wrap: wrap; } .improvement-model-select { flex: 1 1 196px; max-width: 100%; } }
 .improvement-switch-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; }
 .improvement-switch-heading { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
 .api-only { color: var(--muted); font-size: 11px; font-weight: 400; white-space: nowrap; }

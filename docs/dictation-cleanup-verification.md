@@ -1,33 +1,45 @@
-# OpenFlow 1.5.20 verification
+# OpenFlow 1.5.25 — Compact Dictation verification
 
-Verified locally on 2026-11-01. Nothing was published.
+Verified locally on 2026-11-01. No release was published.
 
-- 70 automated tests pass, including real-completion key gating, rejected/unfunded keys, concurrent verification, stale key responses, mode persistence, polish prompt selection, cancellation, code/negation/uncertainty protection and ordered two-piece concurrency.
-- Packaged runtime matches all 39 source/runtime files.
-- Electron UI tests pass with isolated mocked credentials. Both (API only) labels remain visible, invalid credentials disable both switches, three menu choices persist, and 12 selections produce no hidden frames, resizes or moved icons.
-- The AI indicator uses the note-improvement sparkle, subtle vertical movement and staggered glints. Reduced-motion mode disables its animation. Original dictation retains the ordinary spinner.
-- The saved user key successfully completed a real GPT-6 Luna verification request from the installed application. No key or private dictation was recorded in the verification output.
+## Prompt and runtime
 
-## Live latency samples
+- Compact uses the exact user-approved Caveman-style prompt, version `2026-11-01.4`, exported in `dictation-compact-system-prompt.txt`.
+- Polish keeps its previous system prompt byte-for-byte and prompt version `2026-11-01.2`.
+- Menu order remains Original, Polish dictation, Compact dictation.
+- `npm test`: 83 passing tests. The added fixture test runs terse accepted outputs through the real validation, history and paste pipeline, including empty noise, a genuine question and protected details. It confirms these outputs do not fall back to padded originals.
+- The isolated Electron UI regression passes: key gating, menu selection, processing indicator and reduced motion; twelve consecutive selections cause zero hidden frames, native resizes or icon reinsertions.
 
-Synthetic German and English dictations were processed through the installed application runtime. The comparison uses the previous temperature/retry request shape versus the compatible current request shape, with the same model, task prompt and effective medium reasoning effort. These small samples are observations, not a latency SLA or a universal quality guarantee. They exclude speech recognition and pasting.
+## Live comparison
 
-| Sample | Previous request shape | Current request shape | HTTP requests |
-| --- | ---: | ---: | --- |
-| German clean | 1842 ms | 931 ms | 2 → 1 |
-| English clean | 1471 ms | 1185 ms | 2 → 1 |
-| German polish | 1681 ms | 2437 ms | 2 → 1 |
-| English polish | 1369 ms | 1233 ms | 2 → 1 |
+The old Compact prompt, new Compact prompt and unchanged Polish prompt processed the same seven synthetic German/English fixtures through the real GPT-6 Luna API path. A saved key was used without printing it. No private dictation was submitted.
 
-Both clean outputs were identical between request shapes. All outputs passed the existing detail checks. The slower German polish observation illustrates that avoiding a network round trip does not guarantee a faster model response in every case.
+New Compact passed every fixture: polite requests, repetition, factual uncertainty, conditions, negation, genuine ability questions, exact code/quotes/URLs/email/numbers, already minimal text and noise. Compression bounds are specific to deliberately padded fixtures; there is no global production ratio threshold.
 
-## Live distinction between the two levels
+| Fixture | Input characters | Old Compact | New Compact | Polish |
+| --- | ---: | ---: | ---: | ---: |
+| german-request | 132 | 64 | 43 | 87 |
+| english-request | 153 | 71 | 39 | 95 |
+| german-conditions | 137 | 109 | 74 | 139 |
 
-German input: “Ähm, wir hat den Bericht fertig gemacht und ich wollte jetzt nur einmal kurz sagen, dass ich schicke ihn morgen um 14 Uhr an Anna. Bitte nicht vorher senden.”
+Across those three padded examples, the input had 422 characters. Old Compact produced 244 characters; new Compact produced 156. These are observed character counts from one run, not universal reduction, token-cost or semantic-equivalence guarantees.
 
-- Clean: “Wir hat den Bericht fertig gemacht und ich wollte jetzt nur einmal kurz sagen, dass ich schicke ihn morgen um 14 Uhr an Anna. Bitte nicht vorher senden.”
-- Polish: “Wir haben den Bericht fertig gemacht. Ich wollte nur kurz sagen, dass ich ihn morgen um 14 Uhr an Anna schicke. Bitte nicht vorher senden.”
+German request:
 
-English input included “we was finishing” and “I sends it to Alice tomorrow at 2 PM”. Clean retained the spoken grammar; Polish changed these to “We were finishing” and “I will send it to Alice tomorrow at 2 PM”. The instruction “Please do not send it earlier” stayed intact in both outputs.
+> Ähm, ich wollte dich nur kurz bitten, bitte schick den Bericht morgen bis 14 Uhr an Anna. Also bitte morgen bis 14 Uhr. Vielen Dank!
 
-The exact active polish prompt is exported in `dictation-polish-system-prompt.txt` and defined by `POLISH_SYSTEM` in `src/dictation-cleanup.js`.
+Old Compact:
+
+> Bitte schick den Bericht morgen bis 14 Uhr an Anna. Vielen Dank!
+
+New Compact:
+
+> Bericht morgen bis 14 Uhr an Anna schicken.
+
+## README image
+
+The image combines a fresh screenshot of the actual floating bubble/menu with the exact accepted English live-completion example. It was rendered at 1200 × 480 CSS pixels (2400 × 960 PNG), checked for overflow and visually inspected. The README explains the more radical style and links the Caveman source principles.
+
+## Build and installation
+
+The local NSIS build completed using `npm run dist:local` with publishing disabled. `release-local/OpenFlow-Setup-1.5.25-local.exe` is 440,475,062 bytes; its SHA-256 is saved alongside it. All 39 packaged runtime files match the current source. The silent per-user installer returned exit code 0. All 39 installed runtime files match the source. The installed executable reports version 1.5.25, Compact prompt version `2026-11-01.4`, unchanged Polish prompt version `2026-11-01.2`, and menu order Original / Polish / Compact. A real completion through the installed runtime returned “Send report to Alice by Friday at 2 pm.” without fallback or polite wrappers. The application was then restarted normally with `--installed` for manual testing.

@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const commands = require("./commands");
+const { normalizeOpenAIModel, DEFAULT_OPENAI_MODEL } = require("./note-improve");
 
 function blank() {
   return {
@@ -39,7 +40,8 @@ function blank() {
       noteImproveEnabled: true,
       noteImproveOnboardingRelease: "",
       noteImproveProvider: "openai",
-      noteImproveModel: "gpt-6-luna",
+      noteImproveModel: DEFAULT_OPENAI_MODEL,
+      textModelDefaultVersion: 0,
       noteImproveLocalModel: "qwen2.5-3b-instruct-q4",
       noteImproveAutoSuggestions: true,
       noteImproveOnboardingDone: false,
@@ -76,11 +78,21 @@ function createStore(filePath) {
     data = { ...blank(), ...parsed, settings: { ...blank().settings, ...(parsed.settings || {}) } };
   }
 
+  // Migrate the removed filler-only selection once when opening an old profile.
+  if (data.settings.dictationCleanupMode === "fillers") data.settings.dictationCleanupMode = "compact";
+
+  // Adopt the new default once for older default-Luna profiles. Later manual
+  // selections, including Luna, remain selected across restarts.
+  if (data.settings.textModelDefaultVersion !== 1) {
+    if (data.settings.noteImproveModel === "gpt-6-luna") data.settings.noteImproveModel = DEFAULT_OPENAI_MODEL;
+    data.settings.textModelDefaultVersion = 1;
+  }
+
   function normalizeCleanup() {
     data.settings.noteImproveProvider = "openai";
-    data.settings.noteImproveModel = "gpt-6-luna";
+    data.settings.noteImproveModel = normalizeOpenAIModel(data.settings.noteImproveModel);
     data.settings.dictationCleanupEnabled = data.settings.dictationCleanupEnabled === true;
-    if (!data.settings.dictationCleanupEnabled || !["fillers", "polished"].includes(data.settings.dictationCleanupMode)) data.settings.dictationCleanupMode = "raw";
+    if (!data.settings.dictationCleanupEnabled || !["compact", "polished"].includes(data.settings.dictationCleanupMode)) data.settings.dictationCleanupMode = "raw";
   }
   normalizeCleanup();
 
