@@ -42,12 +42,6 @@ Hover over the arrow on the right of the bubble to open **Dictation settings**:
 | **Clean dictation** | Remove filler sounds, stutters, and accidental repetitions while keeping your wording and meaning. |
 | **Polish dictation** | Also correct grammar and smooth awkward or redundant phrasing, while preserving facts, tone, and language. |
 
-A small animated sparkle appears while AI cleanup is processing. If a request fails or the result fails validation, OpenFlow keeps the original text. Raw dictation remains in local history, with **Copy original** available after cleanup.
-
-The **AI improvements** onboarding lets you enable **Improve Notes** and **Improve Dictation** independently. It reuses an existing verified OpenAI key, or lets you enter one in the same window. Both switches remain disabled until the key works, and both retain their **(API only)** labels in **Settings → AI features**. Local Parakeet speech recognition remains available independently; AI cleanup uses OpenAI.
-
-**Usage → Note & Dictation API** combines note improvements with Clean and Polish Dictation: processed words, tokens, and estimated API cost over the last 30 days. New dictation requests use API-reported tokens when available, including cached input; older successful dictation cleanups are included as clearly marked estimates. Original mode adds no cleanup usage. OpenAI STT and local speech-recognition usage stay in their own views.
-
 ---
 
 ## New: Commands — Run Your Scripts from the Bubble
