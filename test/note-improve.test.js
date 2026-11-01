@@ -212,7 +212,7 @@ test("note improvement stays off until the user turns it on", async () => {
   assert.equal(store.getSettings().noteImproveEnabled, false);
 });
 
-test("openai retries without temperature when the model rejects it", async () => {
+test("Luna preserves medium reasoning without the rejected temperature round trip", async () => {
   const store = createStore(":memory:");
   store.updateSettings({
     noteImproveEnabled: true,
@@ -226,6 +226,7 @@ test("openai retries without temperature when the model rejects it", async () =>
     readKey: () => "sk-test",
     fetchImpl: async (_url, init) => {
       const body = JSON.parse(init.body);
+      assert.equal(body.reasoning_effort, "medium");
       temps.push(body.temperature);
       assert.equal(body.model, "gpt-6-luna");
       if (body.temperature != null) {
@@ -250,14 +251,13 @@ test("openai retries without temperature when the model rejects it", async () =>
     },
   });
   const result = await sparkle.improve({ title: "Plan", content: ORIGINAL, instruction: "Polieren" });
-  assert.equal(temps[0], 0.25);
-  assert.equal(temps[1], undefined);
+  assert.equal(temps[0], undefined);
   assert.equal(result.ok, true);
   assert.match(result.content, /Klarer formuliert/);
   assert.equal(store.getPad(result.id).content, result.content);
 });
 
-test("the saved note model is the model that is called", async () => {
+test("notes use GPT-6 Luna even when an older model was saved", async () => {
   const store = createStore(":memory:");
   store.updateSettings({
     noteImproveEnabled: true,
@@ -284,50 +284,32 @@ test("the saved note model is the model that is called", async () => {
     },
   });
   const result = await sparkle.improve({ title: "Plan", content: ORIGINAL, instruction: "Polish" });
-  assert.equal(seen, "gpt-4.1-mini");
-  assert.equal(result.model, "gpt-4.1-mini");
+  assert.equal(seen, "gpt-6-luna");
+  assert.equal(result.model, "gpt-6-luna");
   assert.equal(result.ok, true);
 });
 
-test("a saved local provider still improves through the OpenAI key", async () => {
+test("legacy local note settings require a key and never run a local model", async () => {
   const store = createStore(":memory:");
-  store.updateSettings({
-    noteImproveEnabled: true,
-    noteImproveProvider: "local",
-    noteImproveLocalModel: "qwen2.5-3b-instruct-q4",
-    noteImprovePrivacyAck: false,
-  });
-  let localCalled = 0;
-  const users = [];
+  store.updateSettings({ noteImproveEnabled: true, noteImproveProvider: "local" });
   const sparkle = createNoteSparkle({
-    store,
-    readKey: () => "sk-test",
-    modelLibrary: { status: () => ({ downloaded: true, path: "C:\\models\\qwen.gguf" }) },
-    llamaRuntimeAvailable: () => true,
-    completeLocal: async () => {
-      localCalled += 1;
-      return "should not run";
-    },
-    complete: async (request) => {
-      users.push(request.user);
-      return `${ORIGINAL}\nKlarer.`;
-    },
+    store, readKey: () => "",
+    fetchImpl() { throw new Error("Must not contact OpenAI without a key"); },
+    modelLibrary: { status() { throw new Error("Must not inspect local models"); } },
+    completeLocal() { throw new Error("Must not run local inference"); },
   });
   const result = await sparkle.improve({ title: "Plan", content: ORIGINAL, instruction: "Polieren" });
-  assert.equal(localCalled, 0);
-  assert.match(users[0], /ANWEISUNG: Polieren/);
-  assert.equal(result.ok, true);
-  assert.equal(result.provider, "openai");
-  assert.match(result.content, /Klarer/);
-  assert.equal(store.getPad(result.id).content, result.content);
-  assert.equal(store.getSettings().noteImprovePrivacyAck, true);
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "unconfigured");
+  assert.equal(sparkle.providerName(), "openai");
+  assert.equal(sparkle.modelName(), "gpt-6-luna");
 });
 
 test("note improvement without an API key leaves the note unchanged", async () => {
   const store = createStore(":memory:");
   store.updateSettings({
     noteImproveEnabled: true,
-    noteImproveProvider: "local",
+    noteImproveProvider: "openai",
     noteImprovePrivacyAck: true,
   });
   let localCalled = 0;

@@ -173,7 +173,8 @@ function localUsageReport(history, now = new Date()) {
   });
 }
 
-// Standard OpenAI list prices, USD per 1M tokens, from the pricing page checked 2026-10-28.
+// Standard OpenAI list prices, USD per 1M tokens, checked 2026-11-01.
+// https://developers.openai.com/api/docs/models/gpt-6-luna
 // Short context is at most 272K input tokens. Cached input uses the cached rate when the API reports it.
 // This is an estimate, not an invoice: batch, flex, fast, and regional premiums are not applied.
 const NOTE_IMPROVE_PRICES = {
@@ -221,9 +222,20 @@ function measureNoteChange({ before, after, instruction, model, usage }) {
     cachedTokens,
     tokens: promptTokens + completionTokens,
     tokensEstimated: estimated,
-    costUsd: noteImproveCost(model, promptTokens, completionTokens, cachedTokens),
-    model: NOTE_IMPROVE_PRICES[model] ? model : "gpt-6-luna",
+    costUsd: improve.LOCAL_MODELS.some(item => item.id === model) ? 0 : noteImproveCost(model, promptTokens, completionTokens, cachedTokens),
+    model: improve.LOCAL_MODELS.some(item => item.id === model) || NOTE_IMPROVE_PRICES[model] ? model : "gpt-6-luna",
   };
+}
+
+function measureTextUsage({ before, system, user, after, model, usage }) {
+  const hasTokens = usage && usage.promptTokens != null && usage.completionTokens != null
+    && Number.isFinite(Number(usage.promptTokens)) && Number.isFinite(Number(usage.completionTokens));
+  const promptTokens = hasTokens ? Math.max(0, Math.round(Number(usage.promptTokens))) : estimateTokens(system) + estimateTokens(user);
+  const completionTokens = hasTokens ? Math.max(0, Math.round(Number(usage.completionTokens))) : estimateTokens(after);
+  const cachedTokens = hasTokens ? Math.max(0, Math.min(promptTokens, Math.round(Number(usage.cachedTokens) || 0))) : 0;
+  return { words: wordCount(before), promptTokens, completionTokens, cachedTokens,
+    tokens: promptTokens + completionTokens, tokensEstimated: !hasTokens,
+    costUsd: noteImproveCost(model, promptTokens, completionTokens, cachedTokens) };
 }
 
 function changeFromVersion(row, before) {
@@ -305,6 +317,37 @@ function noteImproveUsageReport(versions, now = new Date()) {
   };
 }
 
+function noteAndDictationUsageReport(versions, dictations, now = new Date()) {
+  const apiVersions = (versions || []).filter(row => row && (row.kind !== "improve"
+    || (row.provider !== "local" && !improve.LOCAL_MODELS.some(model => model.id === row.model))));
+  const report = noteImproveUsageReport(apiVersions, now);
+  const index = new Map(report.days.map((day, slot) => [day.date, slot]));
+  const seenRuns = new Set();
+  report.noteChanges = report.changes;
+  report.dictations = 0;
+  const rows = [...(dictations || [])].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+  for (const row of rows) {
+    if (row.provider !== "openai") continue;
+    const date = new Date(row.created_at);
+    if (Number.isNaN(date.getTime())) continue;
+    const slot = index.get(localDateKey(date));
+    if (slot == null) continue;
+    const day = report.days[slot];
+    day.words += Math.max(0, Number(row.words) || 0);
+    day.tokens += Math.max(0, Number(row.prompt_tokens) || 0) + Math.max(0, Number(row.completion_tokens) || 0);
+    day.costUsd = roundMoney(day.costUsd + (row.cost_usd != null ? Math.max(0, Number(row.cost_usd) || 0)
+      : noteImproveCost(row.model, row.prompt_tokens, row.completion_tokens, row.cached_tokens)));
+    if (row.tokens_estimated) report.estimated = true;
+    const run = row.run_id || row.id;
+    if (!seenRuns.has(run)) { seenRuns.add(run); day.changes++; report.dictations++; }
+  }
+  report.words = report.days.reduce((sum, day) => sum + day.words, 0);
+  report.tokens = report.days.reduce((sum, day) => sum + day.tokens, 0);
+  report.costUsd = roundMoney(report.days.reduce((sum, day) => sum + day.costUsd, 0));
+  report.changes = report.noteChanges + report.dictations;
+  return report;
+}
+
 function computeStats(history) {
   const rows = history || [];
   const words = rows.reduce((sum, row) => sum + (Number(row.word_count) || wordCount(row.formatted_text || row.asr_text)), 0);
@@ -366,8 +409,10 @@ module.exports = {
   TRANSCRIBE_USD_PER_MINUTE,
   estimateTokens,
   measureNoteChange,
+  measureTextUsage,
   noteImproveCost,
   noteImproveUsageReport,
+  noteAndDictationUsageReport,
   NOTE_IMPROVE_PRICES,
   tourSteps,
 };

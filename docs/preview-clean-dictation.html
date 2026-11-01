@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OpenFlow — Improve Dictation</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:1100px;height:420px;overflow:hidden;background:#f5f4f0;color:#1a1a1a;font-family:"Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{padding:28px 32px;display:grid;grid-template-columns:400px 1fr;gap:32px;align-items:center}
+.visual{height:364px;background:#fcfcfb;border:1px solid #e5e1d7;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;gap:8px}
+.visual img{display:block;width:364px;max-height:284px;object-fit:contain}
+.visual p{margin:0;color:#71716e;text-align:center;font-size:13px;line-height:1.5;max-width:300px}
+.copy{min-width:0}h1{font-family:Georgia,"Palatino Linotype",serif;font-size:36px;font-weight:500;letter-spacing:-.025em;line-height:1.1;margin:0 0 8px}
+.subtitle{font-size:16px;color:#71716e;margin:0 0 18px}
+.example{background:#fcfcfb;border:1px solid #e5e1d7;border-radius:12px;padding:13px 16px;margin-top:10px}
+.label{font-size:10px;font-weight:650;letter-spacing:.06em;color:#878683;margin-bottom:6px;text-transform:uppercase;display:flex;align-items:center;gap:7px}
+.example p{margin:0;font-size:16px;line-height:1.5}.filler{color:#9a968f;text-decoration:line-through;text-decoration-color:#bfb8ac}
+.result{background:#fff;border-color:#cbc5b8}.result .label{color:#1a1a1a}.result svg{width:12px;height:12px}
+.footer{margin:13px 0 0;color:#71716e;font-size:12px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="visual"><img src="clean-dictation-menu.png" alt="Actual OpenFlow bubble and compact Dictation settings menu with Original, Improve dictation, and Polish dictation."><p>Hover over the arrow.<br>Choose how your dictation is pasted.</p></div>
+<div class="copy"><h1>Improve Dictation</h1><p class="subtitle">Speak naturally. Paste clearly.</p>
+<div class="example"><div class="label">Original example</div><p><span class="filler">Um, I</span> I might send 25 euros to Alice tomorrow.<br>Please do not cancel.</p></div>
+<div class="example result"><div class="label"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8 3 3 7-7"/></svg>Improve dictation</div><p>I might send <strong>25 euros</strong> to Alice tomorrow.<br>Please <strong>do not</strong> cancel.</p></div>
+<p class="footer">Polish dictation also improves grammar and phrasing.<br>Optional AI improvements use your own OpenAI API key.</p></div>
+</body></html>

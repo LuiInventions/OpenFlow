@@ -350,7 +350,7 @@
 
     function available() {
       const current = settings();
-      return Boolean(current.noteImproveEnabled && current.hasKey);
+      return Boolean(current.noteImproveEnabled && (current.textModelReady ?? current.hasKey));
     }
 
     function paintAvailability() {
@@ -358,7 +358,7 @@
       button.classList.toggle("is-unavailable", !on && !busy);
       if (!busy) button.disabled = !on;
       if (!on) {
-        button.title = settings().hasKey ? "Note improvement is off." : "Add an OpenAI API key in Settings.";
+        button.title = (settings().textModelReady ?? settings().hasKey) ? "Note improvement is off." : "Set up the selected model in Settings.";
         if (panelOpen) hidePanel();
       } else if (!busy) {
         button.title = "Improve";

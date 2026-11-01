@@ -8,10 +8,26 @@
     [hidden] { display: none !important; }
     ::-webkit-scrollbar { display: none; width: 0; height: 0; }
     body { display: flex; align-items: flex-end; justify-content: center; }
-    .stack { display: grid; justify-items: center; align-items: end; gap: 6px; padding-bottom: 0; }
+    .stack { position: relative; display: grid; justify-items: center; align-items: end; gap: 4px; padding-bottom: 0; }
     .menu { box-sizing: border-box; width: 280px; background: #fcfcfb; color: #1a1a1a; border-radius: 16px; padding: 6px; border: 1px solid #eeebe3; box-shadow: none; }
-    .menu.future { opacity: 0.45; }
-    .menu.future button, .menu.future label, .menu.future input { pointer-events: none; }
+    .cleanup-menu { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: max-content; padding: 4px; border-radius: 10px; border-color: #e7e4dd; box-shadow: 0 4px 12px rgb(26 26 26 / .07); }
+    .cleanup-menu::after { content: ""; position: absolute; left: 0; right: 0; bottom: -10px; height: 10px; }
+    .cleanup-title { padding: 4px 6px 5px; color: #464544; font-size: 10px; font-weight: 700; line-height: 13px; }
+    .cleanup-menu .row { cursor: pointer; justify-content: flex-start; gap: 6px; padding: 5px 6px; border-radius: 7px; font-size: 11px; line-height: 14px; white-space: nowrap; }
+    .cleanup-menu .mark { display: grid; place-items: center; width: 12px; height: 12px; flex: 0 0 12px; opacity: 0; }
+    .cleanup-menu .mark svg { width: 12px; height: 12px; }
+    .cleanup-menu button[aria-checked="true"] .mark { width: 12px; height: 12px; margin: 0; border: 0; transform: none; opacity: 1; }
+    .cleanup-menu .row:hover, .cleanup-menu .row:focus-visible { background: #f0eee8; }
+    .cleanup-menu .row:disabled { opacity: .42; cursor: default; }
+    .cleanup-menu .row:focus-visible { outline: 1px solid #c5c0b3; outline-offset: -1px; }
+    .pill #cleanup-toggle { width: 28px; height: 30px; margin-right: -3px; margin-left: -2px; border-radius: 9px 999px 999px 9px; color: #bfbfbd; }
+    .pill #cleanup-toggle::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 1px; background: #333; }
+    .pill #cleanup-toggle:hover, .pill #cleanup-toggle[aria-expanded="true"] { background: #202020; color: #fff; }
+    .pill #cleanup-toggle::after { display: none; }
+    #cleanup-toggle svg { transition: transform .16s ease; }
+    #cleanup-toggle[aria-expanded="true"] svg { transform: translateY(-1px); }
+    #cleanup-toggle.is-cleaned { color: #fff; }
+    .pill #cleanup-toggle:focus-visible { outline: 1px solid #bfbfbd; outline-offset: -3px; }
     .row, .menu label { box-sizing: border-box; display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; background: transparent; border: 0; color: inherit; font: inherit; font-size: 13.5px; text-align: left; padding: 8px 10px; border-radius: 10px; }
     .menu button { cursor: default; }
     .mark { width: 14px; height: 14px; }
@@ -88,6 +104,14 @@
     body[data-mode="listening"] .pill button, body[data-mode="working"] .pill button, body[data-mode="listening"] .voice-group, body[data-mode="working"] .voice-group { display: none !important; }
     body[data-mode="listening"] #status, body[data-mode="working"] #status { display: flex !important; }
     .spin { width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.28); border-top-color: #fff; animation: ofspin .7s linear infinite; }
+    .ai-indicator { width: 16px; height: 16px; display: grid; place-items: center; color: #faf9f7; }
+    .ai-indicator svg { width: 14px; height: 14px; overflow: visible; animation: ai-float 1.9s cubic-bezier(.45,0,.55,1) infinite; }
+    .ai-indicator .ai-main { transform-origin: 12px 12px; animation: ai-breathe 1.9s ease-in-out infinite; }
+    .ai-indicator .ai-small { animation: ai-glint 1.9s ease-in-out infinite; }
+    .ai-indicator .ai-small:last-child { animation-delay: -.65s; }
+    @keyframes ai-float { 0%, 100% { transform: translateY(1px); } 50% { transform: translateY(-1px); } }
+    @keyframes ai-breathe { 0%, 100% { opacity: .85; transform: scale(.96); } 50% { opacity: 1; transform: scale(1); } }
+    @keyframes ai-glint { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
     @keyframes ofspin { to { transform: rotate(360deg); } }
     .eq { display: flex; align-items: flex-end; justify-content: center; gap: 3px; height: 14px; }
     .eq i { width: 2px; height: 3px; background: #fff; display: block; border-radius: 2px; }
@@ -95,26 +119,18 @@
     @media (prefers-reduced-motion: reduce) {
       .eq i { transition: none; }
       .spin { animation: none; border-color: #fff; }
+      .ai-indicator svg, .ai-indicator g { animation: none; opacity: 1; transform: none; }
     }
     svg { display: block; }
   </style>
 </head>
 <body data-mode="idle" data-near="false">
   <div class="stack">
-    <div id="menu" class="menu future" hidden aria-disabled="true">
-      <div id="choices">
-        <label class="row">Automatic <input id="auto" class="check" type="checkbox" tabindex="-1"><span class="switch" aria-hidden="true"><i></i></span></label>
-        <button class="row" type="button" tabindex="-1" data-kind="polish">Polish <span class="mark"></span></button>
-        <button class="row" type="button" tabindex="-1" data-kind="prompt">Engineer <span class="mark"></span></button>
-        <button class="row" id="config" type="button" tabindex="-1">Customize</button>
-      </div>
-      <div id="styles">
-        <button class="row" type="button" tabindex="-1" data-style="concise">Concise <span class="mark"></span></button>
-        <button class="row" type="button" tabindex="-1" data-style="clarity">Clarity <span class="mark"></span></button>
-        <button class="row" type="button" tabindex="-1" data-style="reorder">Reorder <span class="mark"></span></button>
-        <button class="row" type="button" tabindex="-1" data-style="structure">Structure <span class="mark"></span></button>
-        <button class="row" type="button" tabindex="-1" data-style="tone">Tone <span class="mark"></span></button>
-      </div>
+    <div id="menu" class="menu cleanup-menu" role="menu" aria-labelledby="cleanup-menu-title" hidden>
+      <div class="cleanup-title" id="cleanup-menu-title" role="heading" aria-level="2">Dictation settings</div>
+      <button class="row" type="button" role="menuitemradio" data-cleanup-mode="raw" aria-checked="true"><span class="cleanup-label">Original</span><span class="mark" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8 3 3 6-6"/></svg></span></button>
+      <button class="row" type="button" role="menuitemradio" data-cleanup-mode="fillers" aria-checked="false"><span class="cleanup-label">Improve dictation</span><span class="mark" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8 3 3 6-6"/></svg></span></button>
+      <button class="row" type="button" role="menuitemradio" data-cleanup-mode="polished" aria-checked="false"><span class="cleanup-label">Polish dictation</span><span class="mark" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8 3 3 6-6"/></svg></span></button>
     </div>
     <button id="grip" type="button" aria-label="OpenFlow"><span></span></button>
     <div class="pill" id="pill" hidden>
@@ -136,16 +152,30 @@
       <button id="shot" type="button" aria-label="screenshot" data-tooltip="screenshot">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 6.4V3.2H6.4M11.6 3.2h3.2v3.2M14.8 11.6v3.2h-3.2M6.4 14.8H3.2v-3.2"></path><circle cx="9" cy="9" r="1.7"></circle></svg>
       </button>
+      <button id="cleanup-toggle" type="button" aria-label="Choose dictation cleanup" aria-haspopup="menu" aria-controls="menu" aria-expanded="false" data-tooltip="Improve Dictation" hidden>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 9.25 3.5-3.5 3.5 3.5"/></svg>
+      </button>
       <div id="status" class="status" hidden>
         <div class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
         <div id="spin" class="spin" hidden></div>
+        <div id="ai-working" class="ai-indicator" role="img" aria-label="Improving dictation with AI" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <g class="ai-main"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></g>
+            <g class="ai-small"><path d="M20 3v4M22 5h-4"/></g><g class="ai-small"><path d="M4 17v2M5 18H3"/></g>
+          </svg>
+        </div>
+
       </div>
     </div>
   </div>
   <script>
     const menu = document.querySelector("#menu");
-    const choices = document.querySelector("#choices");
-    const styles = document.querySelector("#styles");
+    const cleanupToggle = document.querySelector("#cleanup-toggle");
+    let cleanupEnabled = false;
+    let cleanupMode = "raw";
+    let processingCleanupMode = "raw";
+    let textModelReady = false;
+    let cleanupCloseTimer = 0;
     const note = document.querySelector("#note");
     const tune = document.querySelector("#tune");
     const shot = document.querySelector("#shot");
@@ -170,8 +200,6 @@
     let fromSymbol = false;
     let settleNear = false;
     let armed = false;
-    let kind = "polish";
-    let polishStyle = "clarity";
     let uiGen = 0;
     let micRepaired = false;
     let capture = null;
@@ -180,6 +208,7 @@
     let micQueue = Promise.resolve();
     let placedW = 0;
     let placedH = 0;
+    let placedMenuOpen = false;
     const clips = {
       start: new Audio("sounds/listen-start.wav"),
       done: new Audio("sounds/done.wav"),
@@ -202,13 +231,20 @@
           if (["voice", "note", "tune", "shot"].includes(id)) return true;
           return id.startsWith("cmd:") && commandsList.some((c) => c.id === id.slice(4));
         }).length;
-        const expandedWidth = Math.max(280, Math.min(640, visibleCount * 36 + 72));
-        width = menuOpen ? 300 : expandedWidth;
-        height = menuOpen ? 440 : 78;
+        const expandedWidth = Math.max(280, Math.min(640, visibleCount * 36 + 72 + (cleanupEnabled ? 180 : 0)));
+        width = Math.max(280, expandedWidth);
+        // Reserve the menu's transparent space while expanded. Opening or
+        // selecting a mode must not resize and hide the entire native window.
+        height = cleanupEnabled ? 176 : 78;
       }
       document.body.dataset.mode = mode;
       document.body.dataset.near = near ? "true" : "false";
-      if (width === placedW && height === placedH) return;
+      const menuChanged = menuOpen !== placedMenuOpen;
+      placedMenuOpen = menuOpen;
+      if (width === placedW && height === placedH) {
+        if (menuChanged && window.openflow) window.openflow.dispatch("bar.mode", { menuOpen });
+        return;
+      }
       placedW = width;
       placedH = height;
       resizeHidden(width, height);
@@ -289,12 +325,16 @@
     function getOrCreateCommandButton(cmdId) {
       const cmd = commandsList.find((c) => c.id === cmdId);
       const name = cmd ? cmd.name : "Command";
-      const iconSvg = getCommandSvg(cmd && cmd.icon ? cmd.icon : "terminal");
+      const icon = cmd && cmd.icon ? cmd.icon : "terminal";
+      const iconSvg = getCommandSvg(icon);
       if (commandElements.has(cmdId)) {
         const btn = commandElements.get(cmdId);
         btn.setAttribute("aria-label", name);
         btn.setAttribute("data-tooltip", name);
-        btn.innerHTML = iconSvg;
+        if (btn.dataset.icon !== icon) {
+          btn.dataset.icon = icon;
+          btn.innerHTML = iconSvg;
+        }
         return btn;
       }
       const btn = document.createElement("button");
@@ -303,6 +343,7 @@
       btn.className = "cmd-bubble-btn";
       btn.setAttribute("aria-label", name);
       btn.setAttribute("data-tooltip", name);
+      btn.dataset.icon = icon;
       btn.innerHTML = iconSvg;
       btn.addEventListener("click", (event) => {
         event.stopPropagation();
@@ -334,7 +375,8 @@
           commandElements.delete(cmdId);
         }
       });
-      activeIds.forEach((id) => {
+      let nextElement = cleanupToggle;
+      [...activeIds].reverse().forEach((id) => {
         let el = null;
         if (elemMap[id]) el = elemMap[id];
         else if (id.startsWith("cmd:")) {
@@ -343,7 +385,10 @@
             el = getOrCreateCommandButton(cmdId);
           }
         }
-        if (el && pill && status) pill.insertBefore(el, status);
+        if (el && pill && status) {
+          if (el.nextElementSibling !== nextElement) pill.insertBefore(el, nextElement);
+          nextElement = el;
+        }
       });
       paint();
     }
@@ -382,18 +427,26 @@
 
       status.hidden = !busy;
       document.querySelector(".eq").hidden = mode !== "listening";
-      document.querySelector("#spin").hidden = mode !== "working";
+      const aiProcessing = mode === "working" && processingCleanupMode !== "raw" && cleanupEnabled && textModelReady;
+      document.querySelector("#spin").hidden = mode !== "working" || aiProcessing;
+      document.querySelector("#ai-working").hidden = !aiProcessing;
+      if (!cleanupEnabled || !open) menuOpen = false;
+      cleanupToggle.hidden = !open || !cleanupEnabled;
+      cleanupToggle.setAttribute("aria-expanded", String(menuOpen));
+      cleanupToggle.classList.toggle("is-cleaned", cleanupMode !== "raw");
+      cleanupToggle.dataset.tooltip = cleanupMode === "polished" ? "Polish dictation" : cleanupMode === "fillers" ? "Improve dictation" : "Original";
       menu.hidden = !open || !menuOpen;
-      choices.hidden = false;
-      styles.hidden = false;
       mic.setAttribute("aria-pressed", mode === "listening" ? "true" : "false");
-      tune.setAttribute("aria-pressed", menuOpen ? "true" : "false");
-      document.querySelectorAll("[data-kind]").forEach((button) => {
-        button.setAttribute("aria-checked", button.dataset.kind === kind ? "true" : "false");
+      document.querySelectorAll("[data-cleanup-mode]").forEach(button => {
+        button.setAttribute("aria-checked", String(button.dataset.cleanupMode === cleanupMode));
+        button.disabled = button.dataset.cleanupMode !== "raw" && !textModelReady;
+        button.title = button.disabled ? "Add an API key in Settings" : "";
       });
-      document.querySelectorAll("[data-style]").forEach((button) => {
-        button.setAttribute("aria-checked", button.dataset.style === polishStyle ? "true" : "false");
-      });
+      if (open && cleanupEnabled) {
+        const arrow = cleanupToggle.getBoundingClientRect();
+        const stack = document.querySelector(".stack").getBoundingClientRect();
+        menu.style.left = `${arrow.left + arrow.width / 2 - stack.left}px`;
+      }
       layout();
     }
 
@@ -836,6 +889,7 @@
       settleNear = fromSymbol;
       fromSymbol = false;
       armed = false;
+      processingCleanupMode = !voiceSession && cleanupEnabled && textModelReady ? cleanupMode : "raw";
       mode = "working";
       menuOpen = false;
       document.body.classList.remove("speaking");
@@ -884,6 +938,61 @@
       }
     }
 
+    function applyCleanupConfig(config) {
+      cleanupEnabled = config.dictationCleanupEnabled === true;
+      cleanupMode = cleanupEnabled && ["fillers", "polished"].includes(config.dictationCleanupMode) ? config.dictationCleanupMode : "raw";
+      textModelReady = Boolean(config.textModelReady);
+      if (!cleanupEnabled) menuOpen = false;
+    }
+    function openCleanupMenu() {
+      clearTimeout(cleanupCloseTimer);
+      if (!cleanupEnabled || mode !== "idle") return;
+      near = true;
+      if (!menuOpen) { menuOpen = true; paint(); }
+    }
+    function closeCleanupSoon() {
+      clearTimeout(cleanupCloseTimer);
+      cleanupCloseTimer = setTimeout(() => {
+        menuOpen = false;
+        paint();
+      }, 220);
+    }
+    cleanupToggle.addEventListener("mouseenter", openCleanupMenu);
+    cleanupToggle.addEventListener("focus", openCleanupMenu);
+    cleanupToggle.addEventListener("mouseleave", closeCleanupSoon);
+    menu.addEventListener("mouseenter", () => clearTimeout(cleanupCloseTimer));
+    menu.addEventListener("mouseleave", closeCleanupSoon);
+    cleanupToggle.addEventListener("click", event => {
+      event.stopPropagation();
+      openCleanupMenu();
+    });
+    menu.addEventListener("click", async event => {
+      clearTimeout(cleanupCloseTimer);
+      const button = event.target.closest("[data-cleanup-mode]");
+      if (!button || button.disabled || !window.openflow) return;
+      event.stopPropagation();
+      try {
+        const settings = await window.openflow.dispatch("settings.save", { dictationCleanupMode: button.dataset.cleanupMode });
+        applyCleanupConfig(settings.settings || settings);
+      } catch {
+        play("error");
+      }
+      // Keep the radio menu open for selection; hover-out and Escape close it.
+      // This also preserves the pointer's menu hit area during the save.
+      paint();
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && menuOpen) { menuOpen = false; paint(); }
+      if (menuOpen && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+        event.preventDefault();
+        const buttons = [...menu.querySelectorAll("button:not(:disabled)")];
+        const current = buttons.indexOf(document.activeElement);
+        buttons[(current + (event.key === "ArrowDown" ? 1 : buttons.length - 1) + buttons.length) % buttons.length]?.focus();
+      }
+    });
+    document.addEventListener("click", event => {
+      if (menuOpen && !menu.contains(event.target) && !cleanupToggle.contains(event.target)) { menuOpen = false; paint(); }
+    });
     mic.addEventListener("click", (event) => {
       event.stopPropagation();
       if (window.openflow) window.openflow.dispatch("dictate.toggle", { source: "symbol" });
@@ -895,6 +1004,7 @@
       window.openflow.on("bar-command", (message) => {
         if (!message) return;
         if (message.type === "config") {
+          applyCleanupConfig(message);
           if (message.floatingBubble) floatingBubble = message.floatingBubble;
           if (Array.isArray(message.bubbleElements)) bubbleElements = message.bubbleElements;
           if (typeof message.voiceNoteButton === "boolean") voiceNoteButton = message.voiceNoteButton;
@@ -967,6 +1077,7 @@
     if (window.openflow) {
       window.openflow.dispatch("settings.get").then((s) => {
         if (!s) return;
+        applyCleanupConfig(s);
         if (s.floatingBubble) floatingBubble = s.floatingBubble;
         if (Array.isArray(s.bubbleElements)) bubbleElements = s.bubbleElements;
         if (typeof s.voiceNoteButton === "boolean") voiceNoteButton = s.voiceNoteButton;

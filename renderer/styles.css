@@ -38,6 +38,16 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); }
 button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; background: transparent; border: 0; }
 :focus-visible { outline: 2px solid var(--vast-950); outline-offset: 2px; }
+.improvement-switches { margin-top: 18px; padding-top: 6px; border-top: 1px solid var(--line); }
+.improvement-switch-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; }
+.improvement-switch-heading { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+.api-only { color: var(--muted); font-size: 11px; font-weight: 400; white-space: nowrap; }
+.api-key-status { margin: 8px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.improvement-switch-copy { min-width: 0; }
+.improvement-switch-copy p { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.improvement-switch-row strong { font-size: 13px; font-weight: 500; }
+.improvement-switch-row .switch-btn { flex: 0 0 48px; }
+.improvement-switch-row .switch-btn:disabled { opacity: .4; cursor: default; }
 [hidden] { display: none !important; }
 
 .app {
@@ -2320,3 +2330,16 @@ button.saved {
   background: #000000;
   box-shadow: 0 0 0 1.5px var(--fg);
 }
+
+.transcript-copy { flex: 1; min-width: 0; }
+.copy-original { margin-top: 8px; padding: 0; font-size: 11px; color: var(--muted); }
+.copy-original:hover { color: var(--fg); text-decoration: underline; }
+
+.ai-onboarding { max-width: 480px; max-height: calc(100vh - 48px); overflow-y: auto; padding: 22px 24px; gap: 14px; }
+.ai-onboarding h2 { font-size: 22px; }
+.ai-onboarding .sub { font-size: 12px; line-height: 1.5; }
+.ai-onboarding .improvement-switches { margin: 0; padding: 0; border: 0; }
+.ai-onboarding .improvement-switch-row { padding: 10px 0; }
+.ai-onboarding-key label { display: block; margin-bottom: 7px; font-size: 12px; font-weight: 500; }
+.ai-onboarding-key .key-row { gap: 8px; }
+.ai-onboarding .api-key-status { margin: 0; }

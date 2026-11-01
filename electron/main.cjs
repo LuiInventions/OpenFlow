@@ -13,13 +13,15 @@ const audio = require("../src/audio");
 const parakeet = require("../src/parakeet");
 const commands = require("../src/commands");
 const { createNoteSparkle } = require("../src/note-sparkle");
+const { createApiKeyStatus } = require("../src/api-key-status");
+const { createTextCompletion } = require("../src/text-completion");
+const { createDictationCleanup, active: cleanupActive, legacyDictationUsage } = require("../src/dictation-cleanup");
+const { commitDictation } = require("../src/dictation");
 const { createModelLibrary } = require("../src/note-models");
 const { createLlamaHost, llamaRuntimeAvailable } = require("../src/llama-host");
 const { normalizeOpenAIModel, normalizeLocalModel } = require("../src/note-improve");
 
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
-app.commandLine.appendSwitch("ignore-certificate-errors");
 
 let mainWindow = null;
 let overlayWindow = null;
@@ -34,6 +36,10 @@ let tray = null;
 let chord = null;
 let store = null;
 let noteSparkle = null;
+let textCompletion = null;
+let apiKeyStatus = null;
+let cachedApiKey;
+let dictationCleanup = null;
 let noteModels = null;
 let noteLlama = null;
 let quitting = false;
@@ -717,7 +723,7 @@ function watchPointer() {
     const area = screen.getPrimaryDisplay().workArea;
     const center = area.x + area.width / 2;
     const bottom = area.y + area.height;
-    const reachX = pointerNear ? (barMenuOpen ? 156 : 140) : 44;
+    const reachX = pointerNear ? (barMenuOpen ? overlayWindow.getBounds().width / 2 : 140) : 44;
     const reachY = pointerNear ? (barMenuOpen ? 330 : 58) : 36;
     const hit = Math.abs(cursor.x - center) <= reachX && bottom - cursor.y <= reachY && bottom - cursor.y >= -18;
     if (hit === pointerNear) return;
@@ -753,12 +759,13 @@ function keyPath() {
 }
 
 function readKey() {
+  if (cachedApiKey !== undefined) return cachedApiKey;
   const file = keyPath();
-  if (!fs.existsSync(file)) return "";
+  if (!fs.existsSync(file)) return (cachedApiKey = "");
   try {
     const payload = fs.readFileSync(file);
-    if (safeStorage.isEncryptionAvailable()) return safeStorage.decryptString(payload);
-    return payload.toString("utf8");
+    if (safeStorage.isEncryptionAvailable()) return (cachedApiKey = safeStorage.decryptString(payload));
+    return (cachedApiKey = payload.toString("utf8"));
   } catch (_error) {
     return "";
   }
@@ -769,12 +776,22 @@ function writeKey(value) {
   const text = String(value || "");
   if (!text) {
     if (fs.existsSync(file)) fs.unlinkSync(file);
+    cachedApiKey = "";
     return;
   }
   const payload = safeStorage.isEncryptionAvailable()
     ? safeStorage.encryptString(text)
     : Buffer.from(text, "utf8");
   fs.writeFileSync(file, payload);
+  cachedApiKey = text;
+}
+
+function ensureApiKeyStatus() {
+  if (!apiKeyStatus) apiKeyStatus = createApiKeyStatus({
+    readKey, fetchImpl: (...args) => fetch(...args),
+    onChange() { if (store) { refreshDesk(); applyFloatingBubbleState(); } },
+  });
+  return apiKeyStatus;
 }
 
 const baseBubbleElements = ["voice", "note", "tune", "shot"];
@@ -834,6 +851,7 @@ function selectDownloadedLocalModel(id) {
   });
   selectLocalWhenReady = false;
   refreshDesk();
+  applyFloatingBubbleState();
 }
 
 function showNoteDownloadWindow(id) {
@@ -918,6 +936,8 @@ function beginNoteModelDownload(id, selectWhenReady) {
   }).then((saved) => {
     if (!saved || !saved.downloaded) return;
     selectDownloadedLocalModel(modelId);
+    refreshDesk();
+    applyFloatingBubbleState();
     sendImproveProgress({
       id: modelId,
       percent: 100,
@@ -937,11 +957,25 @@ function beginNoteModelDownload(id, selectWhenReady) {
   return ensureNoteModels().statusList();
 }
 
+function ensureTextCompletion() {
+  if (!textCompletion) textCompletion = createTextCompletion({
+    store, readKey, keyReady: () => ensureApiKeyStatus().ready(), rejectKey: (key, message) => ensureApiKeyStatus().reject(key, message), fetchImpl: fetch, modelLibrary: ensureNoteModels(), llamaRuntimeAvailable,
+    completeLocal: (payload) => ensureNoteLlama().complete(payload),
+  });
+  return textCompletion;
+}
+
+function ensureDictationCleanup() {
+  if (!dictationCleanup) dictationCleanup = createDictationCleanup({ store, completion: ensureTextCompletion() });
+  return dictationCleanup;
+}
+
 function ensureNoteSparkle() {
   if (!noteSparkle) {
     noteSparkle = createNoteSparkle({
       store,
       readKey,
+      textCompletion: ensureTextCompletion(),
       fetchImpl: fetch,
       modelLibrary: ensureNoteModels(),
       llamaRuntimeAvailable,
@@ -976,6 +1010,11 @@ function publicSettings() {
     voiceNoteButton: settings.voiceNoteButton !== false,
     onboardingDone: Boolean(settings.onboardingDone),
     hasKey: Boolean(readKey()),
+    apiKeyStatus: ensureApiKeyStatus().status(),
+    hasWorkingKey: ensureApiKeyStatus().ready(),
+    noteImproveEnabled: ensureApiKeyStatus().ready() && settings.noteImproveEnabled !== false,
+    dictationCleanupEnabled: ensureApiKeyStatus().ready() && settings.dictationCleanupEnabled === true,
+    textModelReady: ensureTextCompletion().usable(),
     noteModels: noteModels ? noteModels.statusList() : [],
     noteDisk: noteModels ? noteModels.disk() : { freeBytes: null },
     llamaRuntime: llamaRuntimeAvailable(),
@@ -1010,6 +1049,9 @@ function applyFloatingBubbleState() {
     floatingBubble: mode,
     bubbleElements: elements,
     voiceNoteButton: settings.voiceNoteButton !== false,
+    dictationCleanupEnabled: ensureApiKeyStatus().ready() && settings.dictationCleanupEnabled === true,
+    dictationCleanupMode: settings.dictationCleanupMode || "raw",
+    textModelReady: ensureTextCompletion().usable(),
     commands: store.listCommands().map((row) => ({ id: row.id, name: row.name, type: row.type, icon: row.icon })),
   });
 }
@@ -1105,9 +1147,9 @@ function pasteLog(line) {
   }
 }
 
-function pasteWithScript(text) {
+function pasteWithScript(text, hwnd) {
   return new Promise((resolve) => {
-    pasteLog(`fallback hwnd=${targetHwnd || 0} chars=${String(text).length}`);
+    pasteLog(`fallback hwnd=${hwnd || 0} chars=${String(text).length}`);
     const child = spawn("powershell.exe", [
       "-NoProfile",
       "-ExecutionPolicy",
@@ -1119,7 +1161,7 @@ function pasteWithScript(text) {
       stdio: ["ignore", "pipe", "pipe"],
       cwd: app.getPath("userData"),
       env: Object.assign({}, process.env, {
-        OPENFLOW_PASTE_HWND: String(targetHwnd || 0),
+        OPENFLOW_PASTE_HWND: String(hwnd || 0),
         OPENFLOW_PASTE_B64: Buffer.from(String(text), "utf8").toString("base64"),
         OPENFLOW_LOG: path.join(app.getPath("userData"), "paste.log"),
       }),
@@ -1146,7 +1188,7 @@ function pasteWithScript(text) {
   });
 }
 
-function askPipeOnce(text) {
+function askPipeOnce(text, hwnd) {
   return new Promise((resolve) => {
     let settled = false;
     let buffer = "";
@@ -1161,7 +1203,7 @@ function askPipeOnce(text) {
     const timer = setTimeout(() => finish("error"), 8000);
     socket.on("connect", () => {
       const payload = Buffer.from(String(text), "utf8").toString("base64");
-      socket.write(`paste ${targetHwnd || 0} ${payload}\n`);
+      socket.write(`paste ${hwnd || 0} ${payload}\n`);
     });
     socket.on("data", (chunk) => {
       buffer += decodeChunk(chunk);
@@ -1190,7 +1232,7 @@ function saveTranscriptNote(text) {
   return created;
 }
 
-function pasteText(text) {
+function pasteText(text, hwnd = targetHwnd) {
   const value = String(text || "");
   if (!value.trim()) return Promise.resolve();
   const typed = /\s$/.test(value) ? value : `${value} `;
@@ -1200,12 +1242,12 @@ function pasteText(text) {
     if (process.platform !== "win32") return;
     let outcome = "error";
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      outcome = await askPipeOnce(typed);
-      pasteLog(`pipe hwnd=${targetHwnd || 0} attempt=${attempt} ${outcome}`);
+      outcome = await askPipeOnce(typed, hwnd);
+      pasteLog(`pipe hwnd=${hwnd || 0} attempt=${attempt} ${outcome}`);
       if (outcome !== "error") break;
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
-    if (outcome === "error") outcome = await pasteWithScript(typed);
+    if (outcome === "error") outcome = await pasteWithScript(typed, hwnd);
     pasteLog(`result ${outcome}`);
     if (outcome !== "ok") saveTranscriptNote(value);
   });
@@ -1242,6 +1284,7 @@ function openSpeechSession(payload) {
     pending: Promise.resolve(),
     failed: null,
     voice: Boolean(payload && payload.voice),
+    targetHwnd,
   });
   return { token };
 }
@@ -1255,29 +1298,11 @@ function liveVoiceText(raw) {
 }
 
 async function commitTranscript(raw, prepared, meta) {
-  store.touchDictionary(prepared.usedPhrases, "used");
-  let text = prepared.text;
-  const sttEngine = (meta && meta.sttEngine) || (store && store.getSettings().sttEngine === "openai" ? "openai" : "parakeet");
-  const history = store.addHistory({
-    asr_text: raw,
-    formatted_text: text,
-    stt_engine: sttEngine,
-    language: meta.language || "",
-    app_name: meta.appName || "",
-    url: meta.url || "",
-    duration_ms: meta.durationMs || 0,
-    word_count: flow.wordCount(text),
-    status: "done",
+  return commitDictation({ store, cleanup: ensureDictationCleanup(), translateText, pasteText }, raw, prepared, {
+    ...meta,
+    targetHwnd: meta.targetHwnd == null ? targetHwnd : meta.targetHwnd,
+    sttEngine: meta.sttEngine || (store.getSettings().sttEngine === "openai" ? "openai" : "parakeet"),
   });
-  for (const follow of prepared.followUps) {
-    if (follow.type === "translate") {
-      text = await translateText(text, follow.language);
-      store.updateHistory(history.id, { formatted_text: text, word_count: flow.wordCount(text) });
-    }
-  }
-  store.addNotification({ title: "Dictation saved", body: text.slice(0, 180) });
-  if (meta.paste) await pasteText(text);
-  return { raw, text, history, prepared };
 }
 
 function registerHotkey() {
@@ -1568,9 +1593,14 @@ function reportCommandFailure(result) {
 const actions = {
   "mic.repair": () => ensureMicrophone(),
   "settings.get": () => publicSettings(),
-  "settings.save": (payload) => {
-    if (payload && Object.prototype.hasOwnProperty.call(payload, "apiKey")) writeKey(payload.apiKey);
-    const patch = { provider: "openai", sttModel: "", ttsModel: "", ttsVoice: "", textModel: "" };
+  "settings.save": async (payload) => {
+    const previousCleanupMode = store.getSettings().dictationCleanupMode;
+    if (payload && Object.prototype.hasOwnProperty.call(payload, "apiKey")) {
+      if (dictationCleanup) dictationCleanup.cancel();
+      writeKey(String(payload.apiKey || "").trim());
+      await ensureApiKeyStatus().validate(true);
+    }
+    const patch = { noteImproveProvider: "openai", noteImproveModel: "gpt-6-luna", provider: "openai", sttModel: "", ttsModel: "", ttsVoice: "", textModel: "" };
     if (payload && (payload.sttEngine === "parakeet" || payload.sttEngine === "openai")) {
       patch.sttEngine = payload.sttEngine;
     }
@@ -1596,18 +1626,11 @@ const actions = {
     if (payload && Object.prototype.hasOwnProperty.call(payload, "onboardingDone")) {
       patch.onboardingDone = Boolean(payload.onboardingDone);
     }
+    if (payload && typeof payload.aiFeaturesOnboardingDone === "boolean") {
+      patch.aiFeaturesOnboardingDone = payload.aiFeaturesOnboardingDone;
+    }
     if (payload && Object.prototype.hasOwnProperty.call(payload, "noteImproveEnabled")) {
-      patch.noteImproveEnabled = Boolean(payload.noteImproveEnabled) && Boolean(readKey());
-    }
-    if (payload && (payload.noteImproveProvider === "openai" || payload.noteImproveProvider === "local")) {
-      patch.noteImproveProvider = "openai";
-      selectLocalWhenReady = false;
-    }
-    if (payload && Object.prototype.hasOwnProperty.call(payload, "noteImproveModel")) {
-      patch.noteImproveModel = normalizeOpenAIModel(payload.noteImproveModel);
-    }
-    if (payload && Object.prototype.hasOwnProperty.call(payload, "noteImproveLocalModel")) {
-      patch.noteImproveLocalModel = normalizeLocalModel(payload.noteImproveLocalModel);
+      patch.noteImproveEnabled = Boolean(payload.noteImproveEnabled);
     }
     if (payload && Object.prototype.hasOwnProperty.call(payload, "noteImproveAutoSuggestions")) {
       patch.noteImproveAutoSuggestions = Boolean(payload.noteImproveAutoSuggestions);
@@ -1621,9 +1644,24 @@ const actions = {
     if (payload && Object.prototype.hasOwnProperty.call(payload, "noteImprovePrivacyAck")) {
       patch.noteImprovePrivacyAck = Boolean(payload.noteImprovePrivacyAck);
     }
+    if (payload && typeof payload.dictationCleanupEnabled === "boolean") {
+      patch.dictationCleanupEnabled = payload.dictationCleanupEnabled;
+    }
+    if (payload && ["raw", "fillers", "polished"].includes(payload.dictationCleanupMode)) {
+      patch.dictationCleanupMode = payload.dictationCleanupMode;
+    }
+    if (!ensureApiKeyStatus().ready()) {
+      const keyChanged = payload && Object.prototype.hasOwnProperty.call(payload, "apiKey");
+      if (keyChanged || Object.prototype.hasOwnProperty.call(patch, "noteImproveEnabled")) patch.noteImproveEnabled = false;
+      if (keyChanged || Object.prototype.hasOwnProperty.call(patch, "dictationCleanupEnabled")) patch.dictationCleanupEnabled = false;
+    }
     store.updateSettings(patch);
+    if (!cleanupActive(store.getSettings()) || previousCleanupMode !== store.getSettings().dictationCleanupMode || !ensureApiKeyStatus().ready()) {
+      if (dictationCleanup) dictationCleanup.cancel();
+    }
+    refreshDesk();
     if (patch.dictationShortcut) syncChordShortcut(patch.dictationShortcut);
-    syncSttEngine();
+    if (patch.sttEngine) syncSttEngine();
     applyFloatingBubbleState();
     return { settings: publicSettings(), hotkeyRegistered: true };
   },
@@ -1648,6 +1686,7 @@ const actions = {
     if (payload && Object.prototype.hasOwnProperty.call(payload, "menuOpen")) {
       barMenuOpen = Boolean(payload.menuOpen);
     }
+    if (!payload || !Number.isFinite(payload.width) || !Number.isFinite(payload.height)) return true;
     if (hidingBar) return true;
     placeBar(payload.width, payload.height);
     if (overlayWindow && !overlayWindow.isDestroyed()) {
@@ -1784,7 +1823,7 @@ const actions = {
     commands: store.listCommands(),
     usage: flow.usageReport(store.listHistory()),
     localUsage: flow.localUsageReport(store.listHistory()),
-    improveUsage: flow.noteImproveUsageReport(store.listAllPadVersions()),
+    improveUsage: flow.noteAndDictationUsageReport(store.listAllPadVersions(), [...store.listDictationUsage(), ...legacyDictationUsage(store.listHistory())]),
     notes: store.listNotes(),
     meetings: store.listMeetings(),
     events: store.listEvents(),
@@ -1835,23 +1874,14 @@ const actions = {
       selectLocalWhenReady = false;
       store.updateSettings({ noteImproveProvider: "openai" });
     }
+    if (dictationCleanup) dictationCleanup.cancel();
+    refreshDesk();
+    applyFloatingBubbleState();
     return removed;
   },
   "notes.model.testKey": async () => {
-    const apiKey = readKey();
-    if (!apiKey) return { ok: false, message: "No API key is saved." };
-    const url = "https://api.openai.com/v1/models";
-    try {
-      providers.assertAllowedUrl(url);
-      const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-        signal: AbortSignal.timeout(20000),
-      });
-      if (!response.ok) return { ok: false, message: "Key test failed." };
-      return { ok: true, message: "Key is valid." };
-    } catch (_error) {
-      return { ok: false, message: "Key test failed." };
-    }
+    const state = await ensureApiKeyStatus().validate(true);
+    return { ok: state.state === "valid", message: state.message || "No API key is saved." };
   },
   "notes.save": (payload) => store.saveNote(payload),
   "notes.versions": (payload) => store.listNoteVersions(payload.id),
@@ -1963,6 +1993,7 @@ const actions = {
       durationMs: payload.durationMs || 0,
       language: session.language,
       sttEngine: session.sttEngine,
+      targetHwnd: session.targetHwnd,
       paste: !session.voice,
       overlay: false,
     });
@@ -2091,6 +2122,7 @@ if (!gotLock) {
     syncSttEngine();
     applyFloatingBubbleState();
     createWindows();
+    ensureApiKeyStatus().validate().catch(() => {});
     createTray();
     await ensureMicrophone();
     startChord();

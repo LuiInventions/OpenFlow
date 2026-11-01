@@ -11,8 +11,11 @@ function blank() {
       provider: "openai",
       sttEngine: "parakeet",
       onboardingDone: false,
+      aiFeaturesOnboardingDone: false,
       dictationShortcut: "ctrl+win",
       dictationMode: "hold",
+      dictationCleanupEnabled: false,
+      dictationCleanupMode: "raw",
       floatingBubble: "active",
       bubbleElements: ["voice", "note", "tune", "shot"],
       transform: "polish",
@@ -44,6 +47,7 @@ function blank() {
     },
     dictionary: [],
     history: [],
+    dictationUsage: [],
     notes: [],
     noteVersions: [],
     meetings: [],
@@ -71,6 +75,14 @@ function createStore(filePath) {
     const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
     data = { ...blank(), ...parsed, settings: { ...blank().settings, ...(parsed.settings || {}) } };
   }
+
+  function normalizeCleanup() {
+    data.settings.noteImproveProvider = "openai";
+    data.settings.noteImproveModel = "gpt-6-luna";
+    data.settings.dictationCleanupEnabled = data.settings.dictationCleanupEnabled === true;
+    if (!data.settings.dictationCleanupEnabled || !["fillers", "polished"].includes(data.settings.dictationCleanupMode)) data.settings.dictationCleanupMode = "raw";
+  }
+  normalizeCleanup();
 
   function save() {
     if (memory) return;
@@ -108,6 +120,7 @@ function createStore(filePath) {
     },
     updateSettings(partial) {
       data.settings = { ...data.settings, ...partial };
+      normalizeCleanup();
       save();
       return this.getSettings();
     },
@@ -174,6 +187,13 @@ function createStore(filePath) {
         url: input.url || "",
         status: input.status || "done",
         stt_engine: input.stt_engine || "openai",
+        prepared_text: input.prepared_text || input.asr_text || "",
+        cleanup_mode: input.cleanup_mode || "raw",
+        cleanup_run_id: input.cleanup_run_id || "",
+        cleanup_prompt_version: input.cleanup_prompt_version || "",
+        cleanup_status: input.cleanup_status || "raw",
+        cleanup_provider: input.cleanup_provider || "",
+        cleanup_model: input.cleanup_model || "",
         duration_ms: Number(input.duration_ms) || 0,
         word_count: Number(input.word_count) || 0,
         archived: false,
@@ -190,6 +210,18 @@ function createStore(filePath) {
       save();
       return { ...row };
     },
+    addDictationUsage(input) {
+      const row = {
+        id: id(), run_id: input.run_id, created_at: now(), provider: input.provider,
+        model: input.model, mode: input.mode, words: input.words,
+        prompt_tokens: input.promptTokens, completion_tokens: input.completionTokens,
+        cached_tokens: input.cachedTokens, cost_usd: input.costUsd, tokens_estimated: input.tokensEstimated,
+      };
+      data.dictationUsage.push(row);
+      save();
+      return { ...row };
+    },
+    listDictationUsage() { return (data.dictationUsage || []).map(row => ({ ...row })); },
     deleteHistory(entryId) {
       data.history = data.history.filter((row) => row.id !== entryId);
       save();

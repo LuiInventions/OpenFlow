@@ -1,6 +1,6 @@
 "use strict";
 
-const providers = require("./providers");
+const { createTextCompletion } = require("./text-completion");
 const improve = require("./note-improve");
 const flow = require("./flow");
 
@@ -9,25 +9,26 @@ const GENERIC_ERROR = "Improvement failed. Try again.";
 function createNoteSparkle(deps) {
   const store = deps.store;
   const jobs = new Map();
+  const completion = deps.textCompletion || createTextCompletion(deps);
 
   function settings() {
     return store.getSettings();
   }
 
   function providerName() {
-    return "openai";
+    return completion.selection().provider;
   }
 
   function modelName() {
-    return improve.normalizeOpenAIModel(settings().noteImproveModel);
+    return completion.selection().model;
   }
 
   function privacyBlocks() {
-    return !settings().noteImprovePrivacyAck;
+    return providerName() === "openai" && !settings().noteImprovePrivacyAck;
   }
 
   function usable() {
-    return Boolean(deps.readKey && deps.readKey());
+    return completion.usable();
   }
 
   function configured() {
@@ -35,7 +36,7 @@ function createNoteSparkle(deps) {
   }
 
   function blockedMessage() {
-    return "The OpenAI key is missing.";
+    return completion.blockedMessage();
   }
 
   function fail(code, message) {
@@ -62,74 +63,6 @@ function createNoteSparkle(deps) {
     const key = id || `job-${Date.now()}`;
     jobs.set(key, { ctrl, done: false });
     return { key, ctrl };
-  }
-
-  async function openAIErrorHint(response) {
-    try {
-      const source = typeof response.clone === "function" ? response.clone() : response;
-      const body = await source.json();
-      const message = String(body && body.error && body.error.message || "").toLowerCase();
-      return {
-        temperature: message.includes("temperature"),
-        format: message.includes("response_format") || message.includes("json_schema"),
-      };
-    } catch (_error) {
-      return { temperature: false, format: false };
-    }
-  }
-
-  function openAIFailure(response) {
-    const error = new Error(GENERIC_ERROR);
-    if (response.status === 401 || response.status === 403) error.safeMessage = "The OpenAI key was rejected.";
-    else if (response.status === 404) error.safeMessage = "This model is not available at OpenAI.";
-    return error;
-  }
-
-  async function completeOpenAI({ kind, system, user, temperature, responseFormat, signal }) {
-    const request = providers.chatRequest({
-      provider: "openai",
-      apiKey: deps.readKey(),
-      model: modelName(),
-      system,
-      user,
-      temperature,
-      responseFormat,
-    });
-    const fetchImpl = deps.fetchImpl || fetch;
-    let response = await fetchImpl(request.url, { ...request.init, signal });
-    if (!response.ok && response.status === 400) {
-      const hint = await openAIErrorHint(response);
-      if (hint.temperature || hint.format) {
-        const body = JSON.parse(request.init.body);
-        if (hint.temperature) delete body.temperature;
-        if (hint.format) delete body.response_format;
-        response = await fetchImpl(request.url, {
-          ...request.init,
-          body: JSON.stringify(body),
-          signal,
-        });
-      }
-    }
-    if (!response.ok) throw openAIFailure(response);
-    const body = await response.json();
-    return { text: providers.parseChatText(body), usage: providers.readChatUsage(body) };
-  }
-
-  async function completeLocal({ kind, system, user, temperature, jsonSchema, signal }) {
-    if (!deps.completeLocal) throw new Error("The local model runtime is not installed.");
-    const model = improve.localModel(modelName());
-    const row = deps.modelLibrary ? deps.modelLibrary.status(model.id) : null;
-    if (!row || !row.path) throw new Error("The local model is not downloaded.");
-    return deps.completeLocal({
-      modelPath: row.path,
-      contextSize: model.contextTokens,
-      system,
-      user,
-      temperature,
-      jsonSchema: jsonSchema || null,
-      maxTokens: kind === "suggest" ? 256 : 2048,
-      signal,
-    });
   }
 
   function normalizeUsage(usage) {
@@ -164,8 +97,7 @@ function createNoteSparkle(deps) {
 
   async function complete(args) {
     if (deps.complete) return asCompletion(await deps.complete(args));
-    if (providerName() === "local") return asCompletion(await completeLocal(args));
-    return asCompletion(await completeOpenAI(args));
+    return asCompletion(await completion.complete(args));
   }
 
   async function rewriteOne(content, instruction, signal, timeoutMs) {
