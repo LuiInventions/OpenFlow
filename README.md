@@ -31,7 +31,7 @@ When idle, the floating bar collapses into a subtle, symmetrically clipped pure-
 Speak naturally, then choose how your words are pasted — directly from the floating bubble.
 
 <p align="center">
-  <img src="docs/clean-dictation.png" alt="OpenFlow Improve Dictation: the actual compact bubble menu and a before-and-after example that removes fillers while preserving names, amounts, and negation." width="100%">
+  <img src="docs/clean-dictation.png" alt="OpenFlow Improve Dictation: Polish dictation selected in the bubble, with a before-and-after example removing fillers, correcting grammar, and smoothing phrasing while preserving names, dates, times, and negation." width="100%">
 </p>
 
 Hover over the arrow on the right of the bubble to open **Dictation settings**:
