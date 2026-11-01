@@ -5,7 +5,7 @@ The AI improvements step follows the speech-engine setup and replaces the previo
 - Improve Notes and Improve Dictation have independent switches with the persistent `(API only)` labels.
 - A working key from the speech-engine step is reused. If no working key is available, both switches are disabled and a password field with Save key appears in the same dialog.
 - Saving an invalid key retains the input and shows the existing failure message. Successful verification removes the field and enables the switches without displaying an API key verified message.
-- Enabling cleanup in onboarding selects Improve dictation when the previous mode was Original, so turning it on has an immediate effect. Existing Polish dictation selections are preserved.
+- Enabling cleanup in onboarding selects Clean dictation when the previous mode was Original, so turning it on has an immediate effect. Existing Polish dictation selections are preserved.
 - Continue without a key completes the optional step without enabling improvements. Continuing during automatic verification preserves existing saved preferences.
 - Key entry works with Enter; draft input survives background settings refreshes. A completed step stays completed across restart.
 

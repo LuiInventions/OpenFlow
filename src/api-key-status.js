@@ -3,7 +3,7 @@
 const crypto = require("node:crypto");
 const providers = require("./providers");
 
-function createApiKeyStatus({ readKey, fetchImpl = fetch, onChange = () => {} }) {
+function createApiKeyStatus({ readKey, fetchImpl = fetch, onChange = () => {}, retryDelay = 400 }) {
   let fingerprint = "";
   let state = { state: "missing", message: "" };
   let pending = null;
@@ -27,21 +27,52 @@ function createApiKeyStatus({ readKey, fetchImpl = fetch, onChange = () => {} })
     if (!key) { publish({ state: "missing", message: "" }); return status(); }
     publish({ state: "checking", message: "Checking API key…" });
     const work = (async () => {
-      try {
-        const request = providers.chatRequest({ provider: "openai", apiKey: key, model: "gpt-6-luna", system: "Return exactly OK.", user: "Key check." });
-        const body = JSON.parse(request.init.body);
-        delete body.temperature;
-        Object.assign(body, { reasoning_effort: "none", max_completion_tokens: 16, store: false });
-        const response = await fetchImpl(request.url, { ...request.init, body: JSON.stringify(body), signal: AbortSignal.timeout(12000) });
-        let next;
-        if (response.ok && providers.parseChatText(await response.json()).trim()) next = { state: "valid", message: "API key verified." };
-        else if ([401, 403].includes(response.status)) next = { state: "invalid", message: "API key rejected. Check the key and its permissions." };
-        else if (response.status === 429) next = { state: "unavailable", message: "Key could not be verified. Check API credit or try again shortly." };
-        else if (response.status === 404) next = { state: "invalid", message: "This key cannot access the improvement model." };
-        else next = { state: "unavailable", message: "Key could not be verified. Please try again." };
-        if (id === fingerprint && id === identify(readKey())) publish(next);
-      } catch {
-        if (id === fingerprint && id === identify(readKey())) publish({ state: "unavailable", message: "Could not reach OpenAI. Save the key again to retry." });
+      const request = providers.chatRequest({ provider: "openai", apiKey: key, model: "gpt-6-luna", system: "Return exactly OK.", user: "Key check." });
+      const body = JSON.parse(request.init.body);
+      delete body.temperature;
+      Object.assign(body, { reasoning_effort: "none", max_completion_tokens: 16, store: false });
+      const current = () => id === fingerprint && id === identify(readKey());
+      async function probe() {
+        let response;
+        try {
+          response = await fetchImpl(request.url, { ...request.init, body: JSON.stringify(body), signal: AbortSignal.timeout(15000) });
+        } catch (error) {
+          const code = String(error.cause?.code || error.code || "");
+          const certificate = /CERT|TLS|SSL/.test(code) || /ERR_CERT/.test(String(error.message));
+          const timeout = ["TimeoutError", "AbortError"].includes(error.name);
+          return { state: "unavailable", retryable: !certificate, message: certificate
+            ? "OpenAI's secure connection could not be verified. Check your system certificates or proxy, then retry."
+            : timeout ? "OpenAI verification timed out. Retry with the saved key."
+              : "Could not connect to OpenAI. Check your connection and retry with the saved key." };
+        }
+        if (response.ok) {
+          try {
+            if (providers.parseChatText(await response.json()).trim()) return { state: "valid", message: "" };
+          } catch {}
+          return { state: "unavailable", retryable: true, message: "OpenAI returned an incomplete verification response. Retry with the saved key." };
+        }
+        if ([401, 403].includes(response.status)) return { state: "invalid", message: "API key rejected. Check the key and its permissions." };
+        if (response.status === 404) return { state: "invalid", message: "This key cannot access the improvement model." };
+        if (response.status === 429) {
+          let quota = false;
+          try { quota = (await response.json()).error?.code === "insufficient_quota"; } catch {}
+          return { state: "unavailable", retryable: !quota, message: quota
+            ? "API credit is unavailable. Check billing, then retry with the saved key."
+            : "OpenAI is rate limiting verification. Please retry shortly." };
+        }
+        return { state: "unavailable", retryable: response.status === 408 || response.status >= 500,
+          message: "OpenAI could not verify the key right now. Retry with the saved key." };
+      }
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const next = await probe();
+        if (!current()) break;
+        if (next.retryable && attempt === 0) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          if (!current()) break;
+          continue;
+        }
+        publish({ state: next.state, message: next.message });
+        break;
       }
       return status();
     })();

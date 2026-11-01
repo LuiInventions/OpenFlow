@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, safeStorage, screen, session, shell, Tray } = require("electron");
+const { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, net: electronNet, safeStorage, screen, session, shell, Tray } = require("electron");
 const { spawn, execFile } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -22,6 +22,10 @@ const { createLlamaHost, llamaRuntimeAvailable } = require("../src/llama-host");
 const { normalizeOpenAIModel, normalizeLocalModel } = require("../src/note-improve");
 
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
+
+// Use Chromium's system proxy and certificate handling for every OpenAI call.
+// Node fetch can reject a system-trusted certificate with SELF_SIGNED_CERT_IN_CHAIN.
+const apiFetch = (...args) => electronNet.fetch(...args);
 
 let mainWindow = null;
 let overlayWindow = null;
@@ -788,7 +792,7 @@ function writeKey(value) {
 
 function ensureApiKeyStatus() {
   if (!apiKeyStatus) apiKeyStatus = createApiKeyStatus({
-    readKey, fetchImpl: (...args) => fetch(...args),
+    readKey, fetchImpl: apiFetch,
     onChange() { if (store) { refreshDesk(); applyFloatingBubbleState(); } },
   });
   return apiKeyStatus;
@@ -959,7 +963,7 @@ function beginNoteModelDownload(id, selectWhenReady) {
 
 function ensureTextCompletion() {
   if (!textCompletion) textCompletion = createTextCompletion({
-    store, readKey, keyReady: () => ensureApiKeyStatus().ready(), rejectKey: (key, message) => ensureApiKeyStatus().reject(key, message), fetchImpl: fetch, modelLibrary: ensureNoteModels(), llamaRuntimeAvailable,
+    store, readKey, keyReady: () => ensureApiKeyStatus().ready(), rejectKey: (key, message) => ensureApiKeyStatus().reject(key, message), fetchImpl: apiFetch, modelLibrary: ensureNoteModels(), llamaRuntimeAvailable,
     completeLocal: (payload) => ensureNoteLlama().complete(payload),
   });
   return textCompletion;
@@ -976,7 +980,7 @@ function ensureNoteSparkle() {
       store,
       readKey,
       textCompletion: ensureTextCompletion(),
-      fetchImpl: fetch,
+      fetchImpl: apiFetch,
       modelLibrary: ensureNoteModels(),
       llamaRuntimeAvailable,
       completeLocal: (payload) => ensureNoteLlama().complete(payload),
@@ -1085,7 +1089,7 @@ async function completeChat(requestFactory) {
     provider: "openai",
     apiKey: readKey(),
   });
-  const body = await providers.postJson(fetch, request);
+  const body = await providers.postJson(apiFetch, request);
   return providers.parseChatText(body);
 }
 
@@ -1593,6 +1597,10 @@ function reportCommandFailure(result) {
 const actions = {
   "mic.repair": () => ensureMicrophone(),
   "settings.get": () => publicSettings(),
+  "settings.verifyKey": async () => {
+    await ensureApiKeyStatus().validate(true);
+    return { settings: publicSettings() };
+  },
   "settings.save": async (payload) => {
     const previousCleanupMode = store.getSettings().dictationCleanupMode;
     if (payload && Object.prototype.hasOwnProperty.call(payload, "apiKey")) {
@@ -1651,7 +1659,8 @@ const actions = {
       patch.dictationCleanupMode = payload.dictationCleanupMode;
     }
     if (!ensureApiKeyStatus().ready()) {
-      const keyChanged = payload && Object.prototype.hasOwnProperty.call(payload, "apiKey");
+      const keyChanged = payload && Object.prototype.hasOwnProperty.call(payload, "apiKey")
+        && ensureApiKeyStatus().status().state !== "unavailable";
       if (keyChanged || Object.prototype.hasOwnProperty.call(patch, "noteImproveEnabled")) patch.noteImproveEnabled = false;
       if (keyChanged || Object.prototype.hasOwnProperty.call(patch, "dictationCleanupEnabled")) patch.dictationCleanupEnabled = false;
     }
@@ -1957,7 +1966,7 @@ const actions = {
           if (result.text && session.voice) liveVoiceText(result.text);
           if (result.language) session.language = result.language;
         } else {
-          const body = await providers.postTranscription(fetch, () => providers.transcriptionRequest({
+          const body = await providers.postTranscription(apiFetch, () => providers.transcriptionRequest({
             provider: "openai",
             apiKey: readKey(),
             audio: bytes,
@@ -2007,7 +2016,7 @@ const actions = {
       voice: settings.ttsVoice || undefined,
       model: settings.ttsModel || undefined,
     });
-    const audio = await providers.postAudio(fetch, request);
+    const audio = await providers.postAudio(apiFetch, request);
     return { base64: audio.bytes.toString("base64"), type: audio.type };
   },
   "speech.translate": async (payload) => {

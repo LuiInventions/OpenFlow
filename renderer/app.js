@@ -590,7 +590,7 @@ function openaiCardHtml(sttEngine) {
   return `<div role="radio" tabindex="0" class="engine-option${isPinned ? " is-pinned" : ""}" data-stt-select="openai" aria-checked="${isChecked ? "true" : "false"}"><div class="engine-normal-view"><div class="engine-head"><strong>gpt-transcribe</strong><button type="button" class="engine-info-btn" data-stt-info="openai" title="Model details" aria-label="Model details">${sttInfoIcon(false)}</button></div><p>Uses OpenAI gpt-transcribe with your personal API key.</p></div><div class="engine-info-view"><div class="engine-info-head"><div class="engine-info-meta"><strong class="engine-info-title">gpt-transcribe</strong><span class="engine-info-tagline">Automatic AI error correction</span></div><button type="button" class="engine-info-btn active" data-stt-info="openai" title="Close details" aria-label="Close details">${sttInfoIcon(true)}</button></div><div class="engine-metrics"><div class="engine-metric-row"><div class="engine-metric-labels"><span>Accuracy</span><strong>93%</strong></div><div class="engine-bar-track"><div class="engine-bar-fill" style="width: 93%;"></div></div></div><div class="engine-metric-row"><div class="engine-metric-labels"><span>Speed (API)</span><strong>34×</strong></div><div class="engine-bar-track"><div class="engine-bar-fill" style="width: 80%;"></div></div></div></div></div></div>`;
 }
 
-  const sttCard = `<div class="settings-card">${ask}<div class="section-label">AI features</div><div class="engine-grid" role="radiogroup" aria-label="Speech-to-Text Engine">${parakeetCardHtml(sttEngine)}${openaiCardHtml(sttEngine)}</div><label class="key">OpenAI API Key ${sttEngine === "parakeet" ? "(Optional)" : ""}<div class="key-row"><input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="${esc(hint)}"><button type="button" id="save-key" class="btn-primary">Save Key</button></div></label>${apiKeyMessage(settings) ? `<p class="api-key-status" role="status">${esc(apiKeyMessage(settings))}</p>` : ""}${improvementSwitches(settings)}</div>`;
+  const sttCard = `<div class="settings-card">${ask}<div class="section-label">AI features</div><div class="engine-grid" role="radiogroup" aria-label="Speech-to-Text Engine">${parakeetCardHtml(sttEngine)}${openaiCardHtml(sttEngine)}</div><label class="key">OpenAI API Key ${sttEngine === "parakeet" ? "(Optional)" : ""}<div class="key-row"><input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="${esc(hint)}"><button type="button" id="save-key" class="btn-primary">Save Key</button></div></label>${apiKeyMessage(settings) ? `<p class="api-key-status" role="status">${esc(apiKeyMessage(settings))}</p>` : ""}${apiKeyRetry(settings)}${improvementSwitches(settings)}</div>`;
 
   // Floating Bubble Appearance
   const bubbleStyle = state.draftFloatingBubble || settings.floatingBubble || "active";
@@ -710,11 +710,34 @@ function apiKeyMessage(settings) {
   return settings.apiKeyStatus && settings.apiKeyStatus.state !== "valid" ? settings.apiKeyStatus.message || "" : "";
 }
 
+function apiKeyRetry(settings) {
+  return settings.hasKey && settings.apiKeyStatus?.state === "unavailable"
+    ? '<button type="button" class="btn-secondary" data-api-key-retry>Retry</button>' : "";
+}
+
+async function retryApiKey() {
+  if (state.onboardingBusy) return;
+  const speechStep = state.onboardingStep === "apikey";
+  state.onboardingBusy = true;
+  state.onboardingError = "";
+  document.querySelectorAll("[data-api-key-retry]").forEach(button => { button.disabled = true; button.textContent = "Checking…"; });
+  try {
+    const result = await window.openflow.dispatch("settings.verifyKey");
+    if (result.settings.hasWorkingKey) {
+      state.onboardingKey = "";
+      if (speechStep) await window.openflow.dispatch("settings.save", { sttEngine: "openai", onboardingDone: true, noteImproveEnabled: false, dictationCleanupEnabled: false });
+    }
+  } finally {
+    state.onboardingBusy = false;
+    await load();
+  }
+}
+
 function improvementSwitches(settings, prefix = "", compact = false) {
   const ready = Boolean(settings.hasWorkingKey);
   return `<div class="improvement-switches">${[
     ["Improve Notes", "note-improve", settings.noteImproveEnabled !== false, compact ? "Polish and rewrite notes using the sparkle button." : "Rewrite and polish your notes with AI. Use the sparkle button inside a note."],
-    ["Improve Dictation", "dictation-cleanup", settings.dictationCleanupEnabled === true, compact ? "Clean up dictated text before pasting. Choose Improve or Polish in the bubble." : "Remove filler words, stutters, and accidental repetitions before pasting. Choose Original, Improve dictation, or Polish dictation from the bubble menu."],
+    ["Improve Dictation", "dictation-cleanup", settings.dictationCleanupEnabled === true, compact ? "Clean up dictated text before pasting. Choose Clean or Polish in the bubble." : "Remove filler words, stutters, and accidental repetitions before pasting. Choose Original, Clean dictation, or Polish dictation from the bubble menu."],
   ].map(([label, feature, enabled, description]) => `<div class="improvement-switch-row"><div class="improvement-switch-copy"><div class="improvement-switch-heading"><strong>${label}</strong><span class="api-only">(API only)</span></div><p id="${prefix}${feature}-help">${description}</p></div><button type="button" class="switch-btn" role="switch" data-${feature}-enabled aria-checked="${ready && enabled}" aria-label="${label}" aria-describedby="${prefix}${feature}-help"${ready ? "" : " disabled"}><span class="switch-thumb"></span></button></div>`).join("")}</div>`;
 }
 
@@ -1056,7 +1079,7 @@ function paintOnboarding() {
   }
   if (state.onboardingStep === "apikey") {
     const focused = document.activeElement?.id === "onboard-api-key";
-    host.innerHTML = `<div class="onboarding-card ai-onboarding" role="dialog" aria-modal="true"><div><h2>Enter OpenAI API key</h2><p class="sub">Use your OpenAI API key for cloud dictation and optional AI improvements.</p></div><div class="key-row"><input id="onboard-api-key" class="onboard-input" type="password" autocomplete="off" spellcheck="false" placeholder="sk-..." aria-label="OpenAI API key"${state.onboardingBusy ? " disabled" : ""}></div>${state.onboardingError || apiKeyMessage(settings) ? `<p class="api-key-status" role="status">${esc(state.onboardingError || apiKeyMessage(settings))}</p>` : ""}<div class="onboarding-actions"><button type="button" class="btn-secondary" data-onboard-back${state.onboardingBusy ? " disabled" : ""}>Back</button><button type="button" class="btn-primary" data-onboard-save-key${state.onboardingBusy ? " disabled" : ""}>${state.onboardingBusy ? "Checking…" : "Save & continue"}</button></div></div>`;
+    host.innerHTML = `<div class="onboarding-card ai-onboarding" role="dialog" aria-modal="true"><div><h2>Enter OpenAI API key</h2><p class="sub">Use your OpenAI API key for cloud dictation and optional AI improvements.</p></div><div class="key-row"><input id="onboard-api-key" class="onboard-input" type="password" autocomplete="off" spellcheck="false" placeholder="sk-..." aria-label="OpenAI API key"${state.onboardingBusy ? " disabled" : ""}></div>${state.onboardingError || apiKeyMessage(settings) ? `<p class="api-key-status" role="status">${esc(state.onboardingError || apiKeyMessage(settings))}</p>` : ""}${apiKeyRetry(settings)}<div class="onboarding-actions"><button type="button" class="btn-secondary" data-onboard-back${state.onboardingBusy ? " disabled" : ""}>Back</button><button type="button" class="btn-primary" data-onboard-save-key${state.onboardingBusy ? " disabled" : ""}>${state.onboardingBusy ? "Checking…" : "Save & continue"}</button></div></div>`;
     const input = host.querySelector("#onboard-api-key");
     if (input) { input.value = state.onboardingKey; if (focused && !input.disabled) input.focus(); }
     return;
@@ -1068,7 +1091,7 @@ function aiFeaturesOnboardingHtml(settings) {
   const ready = Boolean(settings.hasWorkingKey);
   const keyField = !ready ? `<div class="ai-onboarding-key"><label for="ai-onboard-key">OpenAI API key</label><div class="key-row"><input id="ai-onboard-key" class="onboard-input" type="password" autocomplete="off" spellcheck="false" placeholder="sk-..."${state.onboardingBusy ? " disabled" : ""}><button type="button" class="btn-primary" data-ai-onboard-save-key${state.onboardingBusy ? " disabled" : ""}>${state.onboardingBusy ? "Checking…" : "Save key"}</button></div><p class="sub">Enter a working API key to enable these options.</p></div>` : "";
   const message = state.onboardingError || apiKeyMessage(settings);
-  return `<div class="onboarding-card ai-onboarding" role="dialog" aria-modal="true" aria-labelledby="ai-onboarding-title"><div><h2 id="ai-onboarding-title">AI improvements</h2><p class="sub">Choose optional improvements for dictation and notes.</p></div>${improvementSwitches(settings, "onboard-", true)}${keyField}${message ? `<p class="api-key-status" role="status">${esc(message)}</p>` : ""}<div class="onboarding-actions"><button type="button" class="btn-primary" data-ai-onboard-continue${state.onboardingBusy ? " disabled" : ""}>Continue</button></div></div>`;
+  return `<div class="onboarding-card ai-onboarding" role="dialog" aria-modal="true" aria-labelledby="ai-onboarding-title"><div><h2 id="ai-onboarding-title">AI improvements</h2><p class="sub">Choose optional improvements for dictation and notes.</p></div>${improvementSwitches(settings, "onboard-", true)}${keyField}${message ? `<p class="api-key-status" role="status">${esc(message)}</p>` : ""}${apiKeyRetry(settings)}<div class="onboarding-actions"><button type="button" class="btn-primary" data-ai-onboard-continue${state.onboardingBusy ? " disabled" : ""}>Continue</button></div></div>`;
 }
 
 async function saveOnboardingKey(speechStep) {
@@ -1287,6 +1310,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.querySelector("#view").addEventListener("click", async (event) => {
+    if (event.target.closest("[data-api-key-retry]")) { await retryApiKey(); return; }
     const copyOriginal = event.target.closest("[data-copy-dictation-original]");
     if (copyOriginal && window.openflow) {
       const row = (state.desk.history || []).find(row => row.id === copyOriginal.dataset.copyDictationOriginal);
@@ -2012,6 +2036,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.querySelector("#onboarding").addEventListener("click", async (event) => {
+    if (event.target.closest("[data-api-key-retry]")) { await retryApiKey(); return; }
     const choose = event.target.closest("[data-onboard-choose]");
     if (choose) {
       const choice = choose.dataset.onboardChoose;

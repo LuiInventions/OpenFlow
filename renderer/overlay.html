@@ -129,7 +129,7 @@
     <div id="menu" class="menu cleanup-menu" role="menu" aria-labelledby="cleanup-menu-title" hidden>
       <div class="cleanup-title" id="cleanup-menu-title" role="heading" aria-level="2">Dictation settings</div>
       <button class="row" type="button" role="menuitemradio" data-cleanup-mode="raw" aria-checked="true"><span class="cleanup-label">Original</span><span class="mark" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8 3 3 6-6"/></svg></span></button>
-      <button class="row" type="button" role="menuitemradio" data-cleanup-mode="fillers" aria-checked="false"><span class="cleanup-label">Improve dictation</span><span class="mark" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8 3 3 6-6"/></svg></span></button>
+      <button class="row" type="button" role="menuitemradio" data-cleanup-mode="fillers" aria-checked="false"><span class="cleanup-label">Clean dictation</span><span class="mark" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8 3 3 6-6"/></svg></span></button>
       <button class="row" type="button" role="menuitemradio" data-cleanup-mode="polished" aria-checked="false"><span class="cleanup-label">Polish dictation</span><span class="mark" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8 3 3 6-6"/></svg></span></button>
     </div>
     <button id="grip" type="button" aria-label="OpenFlow"><span></span></button>
@@ -434,7 +434,7 @@
       cleanupToggle.hidden = !open || !cleanupEnabled;
       cleanupToggle.setAttribute("aria-expanded", String(menuOpen));
       cleanupToggle.classList.toggle("is-cleaned", cleanupMode !== "raw");
-      cleanupToggle.dataset.tooltip = cleanupMode === "polished" ? "Polish dictation" : cleanupMode === "fillers" ? "Improve dictation" : "Original";
+      cleanupToggle.dataset.tooltip = cleanupMode === "polished" ? "Polish dictation" : cleanupMode === "fillers" ? "Clean dictation" : "Original";
       menu.hidden = !open || !menuOpen;
       mic.setAttribute("aria-pressed", mode === "listening" ? "true" : "false");
       document.querySelectorAll("[data-cleanup-mode]").forEach(button => {

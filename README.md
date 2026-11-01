@@ -39,14 +39,14 @@ Hover over the arrow on the right of the bubble to open **Dictation settings**:
 | Mode | What it does |
 | :--- | :--- |
 | **Original** | Paste without an extra AI rewrite. |
-| **Improve dictation** | Remove filler sounds, stutters, and accidental repetitions while keeping your wording and meaning. |
+| **Clean dictation** | Remove filler sounds, stutters, and accidental repetitions while keeping your wording and meaning. |
 | **Polish dictation** | Also correct grammar and smooth awkward or redundant phrasing, while preserving facts, tone, and language. |
 
 A small animated sparkle appears while AI cleanup is processing. If a request fails or the result fails validation, OpenFlow keeps the original text. Raw dictation remains in local history, with **Copy original** available after cleanup.
 
 The **AI improvements** onboarding lets you enable **Improve Notes** and **Improve Dictation** independently. It reuses an existing verified OpenAI key, or lets you enter one in the same window. Both switches remain disabled until the key works, and both retain their **(API only)** labels in **Settings → AI features**. Local Parakeet speech recognition remains available independently; AI cleanup uses OpenAI.
 
-**Usage → Note & Dictation API** combines note improvements with Improve and Polish Dictation: processed words, tokens, and estimated API cost over the last 30 days. New dictation requests use API-reported tokens when available, including cached input; older successful dictation cleanups are included as clearly marked estimates. Original mode adds no cleanup usage. OpenAI STT and local speech-recognition usage stay in their own views.
+**Usage → Note & Dictation API** combines note improvements with Clean and Polish Dictation: processed words, tokens, and estimated API cost over the last 30 days. New dictation requests use API-reported tokens when available, including cached input; older successful dictation cleanups are included as clearly marked estimates. Original mode adds no cleanup usage. OpenAI STT and local speech-recognition usage stay in their own views.
 
 ---
 
@@ -98,7 +98,7 @@ OpenFlow features a warm, distraction-free two-column layout (`820 × 540`) comb
 
 1. **Hold & Speak (`Ctrl` + `Win` or `microphone`)**: OpenFlow captures 16-bit PCM audio at 24 kHz and monitors RMS energy + speech-band zero-crossing rates. Pure silence is discarded automatically.
 2. **Transcribe (`Parakeet v3` Local or `OpenAI API`)**: Valid speech audio is sliced into 16 kHz mono WAV segments and sent either to the bundled **Parakeet v3** model (running warm in the background on your PC) or over HTTPS to `api.openai.com/v1/audio/transcriptions` (`gpt-transcribe`).
-3. **Optional AI cleanup**: Choose **Improve dictation** to remove speech fillers or **Polish dictation** to also improve grammar and phrasing. **Original** skips this step.
+3. **Optional AI cleanup**: Choose **Clean dictation** to remove speech fillers or **Polish dictation** to also improve grammar and phrasing. **Original** skips this step.
 4. **Direct Paste (`Ctrl` + `V`)**: When an editable input field was focused before recording started, OpenFlow writes the transcript to the clipboard and dispatches `Ctrl` + `V` into the target window.
 5. **Auto-Open Note (Fallback)**: When no text input field is focused—or if pasting is unavailable—OpenFlow automatically saves the dictated text as a new note and **immediately opens that note** in the UI.
 
@@ -125,7 +125,7 @@ OpenFlow has **zero subscriptions or middleman fees**:
 
 Download the latest Windows installer from the [**Releases**](https://github.com/LuiInventions/OpenFlow/releases) page:
 
-- **`OpenFlow-Setup-1.5.22.exe`** — Lightweight Windows NSIS Web/Stub Installer (~1 MB download) with customizable install directory, Start Menu entry, and Desktop shortcut. Automatically fetches the application package from GitHub Releases during setup, checks whether **Parakeet v3** is already installed (skipping download if present, or showing a live MB progress bar), and then opens OpenFlow. Notes use a narrow left rail to collapse, search, open another note, improve, and format. The rail icons line up with the first line of the note. Search in Notes shows every saved note, and long titles wrap instead of being cut off. Note improvement slides up under Copy and Save, and suggestions show a spinner while they generate. Includes Clean/Polish Dictation, verified-key onboarding, and combined Note & Dictation API usage.
+- **`OpenFlow-Setup-1.5.23.exe`** — Lightweight Windows NSIS Web/Stub Installer (~1 MB download) with customizable install directory, Start Menu entry, and Desktop shortcut. Automatically fetches the application package from GitHub Releases during setup, checks whether **Parakeet v3** is already installed (skipping download if present, or showing a live MB progress bar), and then opens OpenFlow. Notes use a narrow left rail to collapse, search, open another note, improve, and format. The rail icons line up with the first line of the note. Search in Notes shows every saved note, and long titles wrap instead of being cut off. Note improvement slides up under Copy and Save, and suggestions show a spinner while they generate. Includes Clean/Polish Dictation, verified-key onboarding, and combined Note & Dictation API usage.
 
 Requirements: Windows 10 or Windows 11 (64-bit). An OpenAI API key is optional.
 
@@ -139,7 +139,7 @@ npm test
 npm run dist
 ```
 
-This builds the Windows NSIS Web Stub installer (`release/nsis-web/OpenFlow-Setup-1.5.22.exe`).
+This builds the Windows NSIS Web Stub installer (`release/nsis-web/OpenFlow-Setup-1.5.23.exe`).
 
 For a full installer containing the application package, built locally without publishing:
 
@@ -147,7 +147,7 @@ For a full installer containing the application package, built locally without p
 npm run dist:local
 ```
 
-Output: `release-local/OpenFlow-Setup-1.5.22-local.exe`. Speech/text model downloads are separate; existing models on this PC are reused.
+Output: `release-local/OpenFlow-Setup-1.5.23-local.exe`. Speech/text model downloads are separate; existing models on this PC are reused.
 
 ---
 
