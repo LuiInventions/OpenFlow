@@ -83,5 +83,10 @@
   },
   "optionalDependencies": {
     "@node-llama-cpp/win-x64": "3.22.2"
+  },
+  "overrides": {
+    "simple-git": {
+      "@simple-git/argv-parser": "2.0.1"
+    }
   }
 }
