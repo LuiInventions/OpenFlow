@@ -20,12 +20,14 @@
     .cleanup-menu .row:hover, .cleanup-menu .row:focus-visible { background: #f0eee8; }
     .cleanup-menu .row:disabled { opacity: .42; cursor: default; }
     .cleanup-menu .row:focus-visible { outline: 1px solid #c5c0b3; outline-offset: -1px; }
-    .pill #cleanup-toggle { width: 28px; height: 30px; margin-right: -3px; margin-left: -2px; border-radius: 9px 999px 999px 9px; color: #bfbfbd; }
-    .pill #cleanup-toggle::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 1px; background: #333; }
-    .pill #cleanup-toggle:hover, .pill #cleanup-toggle[aria-expanded="true"] { background: #202020; color: #fff; }
+    .pill #cleanup-toggle { width: 30px; height: 30px; margin-right: -3px; margin-left: 0; border-radius: 999px; color: #bfbfbd; }
+    /* Divider centred in the 4px gap before the arrow: taller and clearer. */
+    .pill #cleanup-toggle::before { content: ""; position: absolute; left: -2.5px; top: 6px; bottom: 6px; width: 1px; border-radius: 1px; background: #5c5c5c; }
+    /* Hover/open: only a small circle around the arrow, like the other icons. */
+    .pill #cleanup-toggle:hover, .pill #cleanup-toggle[aria-expanded="true"] { background: transparent; color: #fff; }
     .pill #cleanup-toggle::after { display: none; }
-    #cleanup-toggle svg { transform: none; transition: stroke-width .16s ease; }
-    #cleanup-toggle:hover svg, #cleanup-toggle[aria-expanded="true"] svg { stroke-width: 1.8; }
+    #cleanup-toggle svg { box-sizing: content-box; padding: 4px; border-radius: 50%; transform: none; transition: background-color .14s ease, stroke-width .16s ease; }
+    #cleanup-toggle:hover svg, #cleanup-toggle[aria-expanded="true"] svg { background: #1f1f1f; stroke-width: 1.8; }
     #cleanup-toggle.is-cleaned { color: #fff; }
     .pill #cleanup-toggle:focus-visible { outline: 1px solid #bfbfbd; outline-offset: -3px; }
     .row, .menu label { box-sizing: border-box; display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; background: transparent; border: 0; color: inherit; font: inherit; font-size: 13.5px; text-align: left; padding: 8px 10px; border-radius: 10px; }

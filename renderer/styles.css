@@ -780,6 +780,23 @@ h1 {
   color: var(--fg);
 }
 
+/* Fixed label widths (sized for "Hold" and "Start / Stop") so the switches of
+   all mode cards line up vertically. */
+.mode-slider-label:first-child {
+  min-width: 2.3em;
+  text-align: right;
+}
+
+.mode-slider-label:last-child {
+  min-width: 5.3em;
+}
+
+/* Hold vs. Start / Stop is an either-or choice, not on/off: always dark. */
+.switch-btn[data-dictation-mode-toggle] {
+  background: var(--fg);
+  border-color: var(--fg);
+}
+
 .switch-btn {
   position: relative;
   width: 48px;
@@ -2332,6 +2349,7 @@ button.saved {
 .engine-download-btn.is-downloading svg { display: none; }
 .engine-download-btn.is-downloading::after { content: ""; width: 9px; height: 9px; border: 1.5px solid #ffffff60; border-top-color: #fff; border-radius: 50%; animation: model-spin .8s linear infinite; }
 @keyframes model-spin { to { transform: rotate(360deg); } }
+.engine-selected-check { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 19px; height: 19px; border-radius: 50%; background: #2563eb; color: #fff; }
 .engine-grid.has-model-progress .engine-option { height: 138px; }
 .engine-grid.has-model-progress .engine-normal-view, .engine-grid.has-model-progress .engine-info-view { min-height: 0; }
 .model-progress { display: grid; gap: 5px; width: 100%; margin-top: auto; flex-shrink: 0; }

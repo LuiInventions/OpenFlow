@@ -16,6 +16,13 @@ The compact dark-black floating bubble rests at the bottom of your screen. Hold 
 
 ---
 
+## New in 1.5.32
+
+- **Settings → Dictation:** the **Hold / Start / Stop** switch is always dark, because it picks one of two modes rather than turning something on or off. The **Dictation Sounds** switch now lines up exactly below it.
+- **Parakeet details:** the info button on the Parakeet card now shows **Accuracy** and **Speed** bars, laid out like gpt-transcribe. Accuracy 94 % is derived from the 6.34 % average WER on the Open ASR Leaderboard. Speed 5× real time was measured with OpenFlow's own CPU settings on a 2015 dual-core laptop, so newer PCs are faster.
+- **Blue check = selected engine:** the blue check now marks the speech engine you selected (Parakeet or gpt-transcribe) instead of showing that the model is downloaded. The blue download button still appears while the Parakeet model is missing.
+- **Bubble:** hovering the **Dictation settings** arrow now highlights only a small circle around it, like the other icons, instead of the whole section. The divider before the arrow is taller and clearer.
+
 ## New in 1.5.31
 
 - The "Please enter your OpenAI API key" notice in **Settings → AI features** only appears while no API key is saved. It no longer stays visible after you added your key during setup.
@@ -146,7 +153,7 @@ OpenFlow has **zero subscriptions or middleman fees**:
 
 Download the latest Windows installer from the [**Releases**](https://github.com/LuiInventions/OpenFlow/releases) page:
 
-- **`OpenFlow-Setup-1.5.31.exe`** — Lightweight Windows NSIS Web/Stub Installer (~1 MB download) with customizable install directory, Start Menu entry, and Desktop shortcut. Automatically fetches the application package from GitHub Releases during setup, opens OpenFlow, and opens the **AI features** setup, where you download the optional **Parakeet v3** model or choose gpt-transcribe with your API key. Existing models are reused; later model downloads show their progress in the Parakeet card. Notes use a narrow left rail to collapse, search, open another note, improve, and format. The rail icons line up with the first line of the note. Search in Notes shows every saved note, and long titles wrap instead of being cut off. Note improvement slides up under Copy and Save, and suggestions show a spinner while they generate. Includes Compact/Polish Dictation, verified-key onboarding, and combined Note & Dictation API usage.
+- **`OpenFlow-Setup-1.5.32.exe`** — Lightweight Windows NSIS Web/Stub Installer (~1 MB download) with customizable install directory, Start Menu entry, and Desktop shortcut. Automatically fetches the application package from GitHub Releases during setup, opens OpenFlow, and opens the **AI features** setup, where you download the optional **Parakeet v3** model or choose gpt-transcribe with your API key. Existing models are reused; later model downloads show their progress in the Parakeet card. Notes use a narrow left rail to collapse, search, open another note, improve, and format. The rail icons line up with the first line of the note. Search in Notes shows every saved note, and long titles wrap instead of being cut off. Note improvement slides up under Copy and Save, and suggestions show a spinner while they generate. Includes Compact/Polish Dictation, verified-key onboarding, and combined Note & Dictation API usage.
 
 Requirements: Windows 10 or Windows 11 (64-bit). An OpenAI API key is optional.
 
@@ -160,7 +167,7 @@ npm test
 npm run dist
 ```
 
-This builds the Windows NSIS Web Stub installer (`release/nsis-web/OpenFlow-Setup-1.5.31.exe`).
+This builds the Windows NSIS Web Stub installer (`release/nsis-web/OpenFlow-Setup-1.5.32.exe`).
 
 For a full installer containing the application package, built locally without publishing:
 
@@ -168,7 +175,7 @@ For a full installer containing the application package, built locally without p
 npm run dist:local
 ```
 
-Output: `release-local/OpenFlow-Setup-1.5.31-local.exe`. Speech-model downloads are separate; existing models on this PC are reused.
+Output: `release-local/OpenFlow-Setup-1.5.32-local.exe`. Speech-model downloads are separate; existing models on this PC are reused.
 
 ---
 
