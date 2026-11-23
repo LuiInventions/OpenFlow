@@ -18,6 +18,7 @@ const { createTextCompletion } = require("../src/text-completion");
 const { createDictationCleanup, active: cleanupActive, legacyDictationUsage } = require("../src/dictation-cleanup");
 const { commitDictation } = require("../src/dictation");
 const { normalizeOpenAIModel, TEXT_MODELS } = require("../src/note-improve");
+const { normalizeCustom, resolveShortcut, chordSpec, recordedKey } = require("../src/shortcut");
 
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 
@@ -49,6 +50,7 @@ let pointerTimer = null;
 let pointerNear = false;
 let barMenuOpen = false;
 let chordStarts = 0;
+let shortcutRecording = false;
 let targetHwnd = 0;
 let notePadId = "";
 let hidingBar = false;
@@ -650,7 +652,7 @@ function syncChordShortcut(shortcut) {
 function startChord() {
   if (process.platform !== "win32" || process.env.OPENFLOW_SMOKE === "1" || chordStarts >= 3) return;
   chordStarts += 1;
-  const initialChord = store ? (store.getSettings().dictationShortcut || "ctrl+win") : "ctrl+win";
+  const initialChord = store ? chordSpec(store.getSettings()) : "ctrl+win";
   chord = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptCopy("chord.ps1")], {
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"],
@@ -675,6 +677,9 @@ function startChord() {
         beginDictate(text.slice("dictate-down".length), "chord");
       } else if (text === "dictate-up") {
         if (dictateSource === "chord") endDictate();
+      } else if (text.startsWith("rec-key ")) {
+        const [vk, charCode] = text.slice(8).split(" ").map(Number);
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("shortcut-key", recordedKey(vk, charCode));
       }
     }
   });
@@ -827,8 +832,8 @@ function ensureNoteSparkle() {
 function publicSettings() {
   const settings = store.getSettings();
   const sttEngine = settings.sttEngine === "openai" ? "openai" : "parakeet";
-  const validShortcuts = ["ctrl+win", "ctrl+space", "ctrl+alt", "ctrl+shift"];
-  const dictationShortcut = validShortcuts.includes(settings.dictationShortcut) ? settings.dictationShortcut : "ctrl+win";
+  const shortcut = resolveShortcut(settings);
+  const customShortcut = normalizeCustom(settings.customShortcut) || resolveShortcut({ dictationShortcut: "custom" });
   const dictationMode = settings.dictationMode === "toggle" ? "toggle" : "hold";
   const validFloatingBubble = ["active", "dimmed", "hidden"];
   const floatingBubble = validFloatingBubble.includes(settings.floatingBubble) ? settings.floatingBubble : "active";
@@ -840,7 +845,9 @@ function publicSettings() {
   return {
     ...settings,
     sttEngine,
-    dictationShortcut,
+    dictationShortcut: shortcut.id,
+    shortcutKeys: shortcut.labels,
+    customShortcut: { keys: customShortcut.keys, labels: customShortcut.labels },
     dictationMode,
     floatingBubble,
     bubbleElements: bubbleElements.length ? bubbleElements : defaultElements,
@@ -1139,7 +1146,13 @@ function createWindows() {
     closeNoteHistory();
     mainWindow.hide();
   });
-  mainWindow.on("hide", () => closeNoteHistory());
+  mainWindow.on("hide", () => {
+    closeNoteHistory();
+    if (shortcutRecording && store) {
+      shortcutRecording = false;
+      syncChordShortcut(chordSpec(store.getSettings()));
+    }
+  });
   mainWindow.on("show", () => {
     if (process.env.OPENFLOW_SMOKE === "1") return;
     if (needsOnboarding()) {
@@ -1397,6 +1410,12 @@ function reportCommandFailure(result) {
 const actions = {
   "mic.repair": () => ensureMicrophone(),
   "settings.get": () => publicSettings(),
+  // While Settings records a new shortcut, the hook swallows and reports every key.
+  "shortcut.recording": (payload) => {
+    shortcutRecording = Boolean(payload && payload.active);
+    syncChordShortcut(shortcutRecording ? "record" : chordSpec(store.getSettings()));
+    return { ok: true };
+  },
   "parakeet.download": () => beginModelDownload(),
   "settings.verifyKey": async () => {
     await ensureApiKeyStatus().validate(true);
@@ -1414,9 +1433,13 @@ const actions = {
     if (payload && (payload.sttEngine === "parakeet" || payload.sttEngine === "openai")) {
       patch.sttEngine = payload.sttEngine;
     }
-    const validShortcuts = ["ctrl+win", "ctrl+space", "ctrl+alt", "ctrl+shift"];
+    const validShortcuts = ["ctrl+win", "ctrl+space", "ctrl+alt", "custom"];
     if (payload && validShortcuts.includes(payload.dictationShortcut)) {
       patch.dictationShortcut = payload.dictationShortcut;
+    }
+    if (payload && payload.customShortcut) {
+      const custom = normalizeCustom(payload.customShortcut);
+      if (custom) patch.customShortcut = custom;
     }
     if (payload && (payload.dictationMode === "hold" || payload.dictationMode === "toggle")) {
       patch.dictationMode = payload.dictationMode;
@@ -1474,7 +1497,7 @@ const actions = {
       if (dictationCleanup) dictationCleanup.cancel();
     }
     refreshDesk();
-    if (patch.dictationShortcut) syncChordShortcut(patch.dictationShortcut);
+    if (patch.dictationShortcut || patch.customShortcut) syncChordShortcut(chordSpec(store.getSettings()));
     if (patch.sttEngine) syncSttEngine();
     applyFloatingBubbleState();
     return { settings: publicSettings(), hotkeyRegistered: true };

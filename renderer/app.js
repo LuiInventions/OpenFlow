@@ -32,6 +32,9 @@ const state = {
   sttInfoOpenai: false,
   usageKind: "stt",
   usageMenuOpen: false,
+  shortcutRec: null,
+  shortcutRecTimer: 0,
+  shortcutErrorTimer: 0,
 };
 let loadGeneration = 0;
 let draggedElemId = null;
@@ -340,11 +343,83 @@ function render() {
   }
 }
 
-function shortcutKeysHtml(shortcut) {
-  if (shortcut === "ctrl+space") return "<kbd>Ctrl</kbd> + <kbd>Space</kbd>";
-  if (shortcut === "ctrl+alt") return "<kbd>Ctrl</kbd> + <kbd>Alt</kbd>";
-  if (shortcut === "ctrl+shift") return "<kbd>Ctrl</kbd> + <kbd>Shift</kbd>";
-  return "<kbd>Ctrl</kbd> + <kbd>Win</kbd>";
+function shortcutKeysHtml(labels) {
+  const keys = Array.isArray(labels) && labels.length === 2 ? labels : ["Ctrl", "Win"];
+  return keys.map(key => `<kbd>${esc(key)}</kbd>`).join(" + ");
+}
+
+// Own shortcut box: shows "Own shortcut", the saved keys, or the recording prompt.
+function ownShortcutHtml(settings) {
+  const rec = state.shortcutRec;
+  const active = settings.dictationShortcut === "custom";
+  let body;
+  if (rec && rec.error) body = `<span class="shortcut-own-text is-error">${esc(rec.error)}</span>`;
+  else if (rec && rec.labels.length) body = `<span class="shortcut-keys"><kbd>${esc(rec.labels[0])}</kbd> + <span class="shortcut-own-wait">…</span></span>`;
+  else if (rec) body = '<span class="shortcut-own-text">Press 2 keys</span>';
+  else if (active) body = `<span class="shortcut-keys">${shortcutKeysHtml(settings.shortcutKeys)}</span>`;
+  else body = '<span class="shortcut-own-text">Own shortcut</span>';
+  const title = rec ? "Press two keys. Esc cancels." : active ? "Own shortcut. Click to change." : "Own shortcut. Click and press two keys.";
+  return `<button type="button" class="shortcut-option shortcut-own${rec ? " is-recording" : ""}" role="radio" data-shortcut-own aria-checked="${active || rec ? "true" : "false"}" title="${title}" aria-label="${title}">${body}</button>`;
+}
+
+function paintOwnShortcut() {
+  const box = document.querySelector("[data-shortcut-own]");
+  if (!box || !state.desk) return;
+  const settings = state.desk.settings || {};
+  box.outerHTML = ownShortcutHtml(settings);
+  document.querySelectorAll("[data-shortcut-select]").forEach(option => {
+    option.setAttribute("aria-checked", String(!state.shortcutRec && option.dataset.shortcutSelect === settings.dictationShortcut));
+  });
+}
+
+const SHORTCUT_ANCHORS = [17, 18, 91]; // Ctrl, Alt, Win
+
+function armShortcutTimeout() {
+  clearTimeout(state.shortcutRecTimer);
+  state.shortcutRecTimer = setTimeout(() => stopShortcutRecording(), 10000);
+}
+
+function startShortcutRecording() {
+  if (!window.openflow) return;
+  clearTimeout(state.shortcutErrorTimer);
+  state.shortcutRec = { keys: [], labels: [], error: "" };
+  window.openflow.dispatch("shortcut.recording", { active: true }).catch(() => {});
+  armShortcutTimeout();
+  paintOwnShortcut();
+}
+
+function stopShortcutRecording() {
+  if (!state.shortcutRec) return;
+  clearTimeout(state.shortcutRecTimer);
+  clearTimeout(state.shortcutErrorTimer);
+  state.shortcutRec = null;
+  if (window.openflow) window.openflow.dispatch("shortcut.recording", { active: false }).catch(() => {});
+  paintOwnShortcut();
+}
+
+async function onShortcutKey(data) {
+  const rec = state.shortcutRec;
+  if (!rec || !data || rec.error) return;
+  if (data.key === 27) { stopShortcutRecording(); return; }
+  if (rec.keys.includes(data.key)) return;
+  rec.keys.push(data.key);
+  rec.labels.push(data.label);
+  armShortcutTimeout();
+  if (rec.keys.length < 2) { paintOwnShortcut(); return; }
+  if (!rec.keys.some(key => SHORTCUT_ANCHORS.includes(key))) {
+    rec.error = "Use Ctrl, Alt or Win";
+    paintOwnShortcut();
+    state.shortcutErrorTimer = setTimeout(() => {
+      if (state.shortcutRec !== rec) return;
+      startShortcutRecording();
+    }, 1500);
+    return;
+  }
+  clearTimeout(state.shortcutRecTimer);
+  state.shortcutRec = null;
+  await window.openflow.dispatch("settings.save", { dictationShortcut: "custom", customShortcut: { keys: rec.keys, labels: rec.labels } });
+  await window.openflow.dispatch("shortcut.recording", { active: false });
+  await load();
 }
 
 function originalDictationButton(row) {
@@ -358,7 +433,7 @@ function dictateHtml() {
   const text = last ? (last.edited_text || last.formatted_text || last.asr_text) : "";
   const settings = state.desk.settings || {};
   const engine = settings.sttEngine === "openai" ? "gpt-transcribe" : "Parakeet v3 (Local)";
-  const shortcut = settings.dictationShortcut || "ctrl+win";
+  const shortcut = settings.shortcutKeys;
   const isToggle = settings.dictationMode === "toggle";
   const headline = isToggle ? "Press shortcut to start and stop dictation" : "Hold shortcut to dictate anywhere";
   const subline = isToggle
@@ -633,12 +708,11 @@ function settingsHtml() {
     { id: "ctrl+win", keys: "<kbd>Ctrl</kbd> + <kbd>Win</kbd>" },
     { id: "ctrl+space", keys: "<kbd>Ctrl</kbd> + <kbd>Space</kbd>" },
     { id: "ctrl+alt", keys: "<kbd>Ctrl</kbd> + <kbd>Alt</kbd>" },
-    { id: "ctrl+shift", keys: "<kbd>Ctrl</kbd> + <kbd>Shift</kbd>" },
   ];
   const shortcutHtml = shortcuts.map((item) => {
-    const checked = shortcut === item.id ? "true" : "false";
+    const checked = shortcut === item.id && !state.shortcutRec ? "true" : "false";
     return `<button type="button" class="shortcut-option" role="radio" data-shortcut-select="${item.id}" aria-checked="${checked}"><span class="shortcut-keys">${item.keys}</span></button>`;
-  }).join("");
+  }).join("") + ownShortcutHtml(settings);
   const modeTitle = isToggle ? "Press Once to Start / Second Time to Stop" : "Hold Shortcut to Dictate";
   const soundsOn = settings.sounds !== false;
   const soundCard = `<div class="mode-toggle-card"><div class="mode-toggle-copy"><strong>Dictation Sounds</strong><span>Play sound cues when dictation starts or finishes.</span></div><div class="mode-slider-wrap"><span class="mode-slider-label${!soundsOn ? " active" : ""}">Off</span><button type="button" class="switch-btn" role="switch" data-dictation-sounds-toggle aria-checked="${soundsOn ? "true" : "false"}" aria-label="Dictation Sounds"><span class="switch-thumb"></span></button><span class="mode-slider-label${soundsOn ? " active" : ""}">On</span></div></div>`;
@@ -869,7 +943,7 @@ function paintEditor() {
   if (editor.dataset.id === editorKey && editor.querySelector("#editor-title")) {
     editor.classList.add("note-shell");
     editor.hidden = false;
-    if (editor._chrome) editor._chrome.setShortcut((state.desk && state.desk.settings && state.desk.settings.dictationShortcut) || "");
+    if (editor._chrome) editor._chrome.setShortcut((state.desk && state.desk.settings && (state.desk.settings.shortcutKeys || state.desk.settings.dictationShortcut)) || "");
     if (editor._sparkle && editor._sparkle.paintAvailability) editor._sparkle.paintAvailability();
     return;
   }
@@ -886,7 +960,7 @@ function paintEditor() {
   editor.hidden = false;
   const titleVal = state.editor.title || "Note";
   const closeIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"></line><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"></line></svg>';
-  const shortcut = (state.desk && state.desk.settings && state.desk.settings.dictationShortcut) || "";
+  const shortcut = (state.desk && state.desk.settings && (state.desk.settings.shortcutKeys || state.desk.settings.dictationShortcut)) || "";
   const rail = window.OpenflowNoteChrome ? window.OpenflowNoteChrome.railHtml() : `<div class="sparkle-host"></div>`;
   const hint = window.OpenflowNoteChrome ? window.OpenflowNoteChrome.hintHtml(shortcut) : "";
   const formatDock = window.OpenflowNoteChrome ? window.OpenflowNoteChrome.formatDockHtml() : "";
@@ -962,7 +1036,7 @@ function wireEditorChrome(editor) {
   editor._chrome = window.OpenflowNoteChrome.bind({
     shell: editor,
     textarea: editor.querySelector("#editor-body"),
-    shortcut: (state.desk && state.desk.settings && state.desk.settings.dictationShortcut) || "",
+    shortcut: (state.desk && state.desk.settings && (state.desk.settings.shortcutKeys || state.desk.settings.dictationShortcut)) || "",
     getPads: async () => {
       if (!window.openflow) return (state.desk && state.desk.pads) || [];
       const pads = await window.openflow.dispatch("pads.list");
@@ -1435,6 +1509,11 @@ document.addEventListener("DOMContentLoaded", () => {
       state.confirmDeleteId = null;
       state.confirmSttEngine = nextEngine;
       paintConfirmModal();
+      return;
+    }
+
+    if (event.target.closest("[data-shortcut-own]")) {
+      startShortcutRecording();
       return;
     }
 
@@ -2043,6 +2122,12 @@ document.addEventListener("DOMContentLoaded", () => {
   if (!window.openflow) return;
   window.openflow.on("note-voice", onEditorVoice);
   window.openflow.on("model-install-progress", paintModelProgress);
+  window.openflow.on("shortcut-key", data => { onShortcutKey(data).catch(() => {}); });
+  // Recording ends when the user clicks anywhere else or leaves the window.
+  document.addEventListener("pointerdown", event => {
+    if (state.shortcutRec && !event.target.closest("[data-shortcut-own]")) stopShortcutRecording();
+  }, true);
+  window.addEventListener("blur", () => stopShortcutRecording());
   window.openflow.on("desk-refresh", (payload) => {
     load(payload).catch(() => {});
   });

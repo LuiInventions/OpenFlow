@@ -19,13 +19,28 @@ public static class OpenFlowChord {
   private const uint GA_ROOT = 2;
   private static IntPtr hook;
   private static HookProc proc;
-  private static volatile string chordMode = "win";
-  private static bool ctrl;
-  private static bool mod2;
+  // The dictation shortcut is two keys, A and B. Modifier families use one code:
+  // 17 Ctrl, 16 Shift, 18 Alt, 91 Win; any other value is an exact virtual key.
+  private static volatile int keyA = 17;
+  private static volatile int keyB = 91;
+  private static bool downA;
+  private static bool downB;
   private static bool active;
-  private static bool ateMod2;
-  private static uint ctrlTime;
-  private static uint modTime;
+  private static bool ateA;
+  private static bool ateB;
+  private static bool maskA;
+  private static bool maskB;
+  private static uint timeA;
+  private static uint timeB;
+  // Recording a new shortcut in Settings: every key is swallowed (so Windows
+  // shortcuts such as Win+K do not fire) and reported as "rec-key <vk> <char>".
+  // Ends with the next chord line or by itself after 12 s, so input never stays blocked.
+  private static volatile bool recording;
+  private static int recordUntil;
+  private static readonly HashSet<uint> recordDown = new HashSet<uint>();
+  // Test support: when set, replaces the physical key state and records output.
+  public static HashSet<int> FakeHeld;
+  public static List<string> Trace;
 
   private delegate IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam);
 
@@ -81,6 +96,8 @@ public static class OpenFlowChord {
   private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
   [DllImport("kernel32.dll")]
   private static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll")]
+  private static extern uint MapVirtualKey(uint uCode, uint uMapType);
   [DllImport("user32.dll", SetLastError = true)]
   private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
   [DllImport("user32.dll")]
@@ -146,40 +163,74 @@ public static class OpenFlowChord {
     [FieldOffset(24)] public IntPtr dwExtraInfo;
   }
 
-  private static bool IsCtrl(uint vk) { return vk == 0x11 || vk == 0xA2 || vk == 0xA3; }
-  private static bool IsCtrlScan(KBDLLHOOKSTRUCT info) { return (info.scanCode & 0xFF) == 0x1D; }
-  private static bool IsMod2(uint vk) {
-    string mode = chordMode;
-    if (mode == "space") return vk == 0x20;
-    if (mode == "alt") return vk == 0x12 || vk == 0xA4 || vk == 0xA5;
-    if (mode == "shift") return vk == 0x10 || vk == 0xA0 || vk == 0xA1;
-    return vk == 0x5B || vk == 0x5C;
+  private static int[] Family(int key) {
+    if (key == 17) return new int[] { 0x11, 0xA2, 0xA3 };
+    if (key == 16) return new int[] { 0x10, 0xA0, 0xA1 };
+    if (key == 18) return new int[] { 0x12, 0xA4, 0xA5 };
+    if (key == 91) return new int[] { 0x5B, 0x5C };
+    return new int[] { key };
   }
-  private static bool Held(int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; }
-  private static bool CtrlHeld() { return Held(0x11) || Held(0xA2) || Held(0xA3); }
-  private static bool Mod2Held() {
-    string mode = chordMode;
-    if (mode == "space") return Held(0x20);
-    if (mode == "alt") return Held(0x12) || Held(0xA4) || Held(0xA5);
-    if (mode == "shift") return Held(0x10) || Held(0xA0) || Held(0xA1);
-    return Held(0x5B) || Held(0x5C);
+  private static bool Matches(int key, uint vk, uint scan) {
+    if (key <= 0) return false;
+    if (key == 17 && (scan & 0xFF) == 0x1D) return true;
+    foreach (int code in Family(key)) if (code == (int)vk) return true;
+    return false;
+  }
+  private static bool Held(int vk) {
+    HashSet<int> fake = FakeHeld;
+    if (fake != null) return fake.Contains(vk);
+    return (GetAsyncKeyState(vk) & 0x8000) != 0;
+  }
+  private static bool KeyHeld(int key) {
+    if (key <= 0) return false;
+    foreach (int code in Family(key)) if (Held(code)) return true;
+    return false;
+  }
+  // Releasing Win or Alt on its own opens the Start menu or a menu bar. When such a
+  // key passed through and then became part of the shortcut, tap an unassigned key
+  // before its release reaches Windows.
+  private static bool NeedsMask(int key) { return key == 91 || key == 18; }
+  private static void Mask() {
+    if (Trace != null) { Trace.Add("mask"); return; }
+    Tap(0xE8, false);
+    Tap(0xE8, true);
   }
 
-  private static void SetChordMode(string raw) {
+  // Accepts "keys:A+B" (virtual keys) and the former preset names; "off" pauses.
+  public static void SetChordMode(string raw) {
     string v = (raw ?? "").Trim().ToLowerInvariant();
-    if (v == "ctrl+space" || v == "space") chordMode = "space";
-    else if (v == "ctrl+alt" || v == "alt") chordMode = "alt";
-    else if (v == "ctrl+shift" || v == "shift") chordMode = "shift";
-    else chordMode = "win";
-    ctrl = false;
-    mod2 = false;
+    recordDown.Clear();
+    if (v == "record") {
+      recordUntil = Environment.TickCount + 12000;
+      recording = true;
+      return;
+    }
+    recording = false;
+    int a = 17, b = 91;
+    if (v == "off") { a = 0; b = 0; }
+    else if (v == "ctrl+space" || v == "space") b = 0x20;
+    else if (v == "ctrl+alt" || v == "alt") b = 18;
+    else if (v == "ctrl+shift" || v == "shift") b = 16;
+    else if (v.StartsWith("keys:")) {
+      string[] parts = v.Substring(5).Split('+');
+      int pa, pb;
+      if (parts.Length == 2 && int.TryParse(parts[0], out pa) && int.TryParse(parts[1], out pb) && pa > 0 && pb > 0 && pa < 255 && pb < 255 && pa != pb) { a = pa; b = pb; }
+    }
+    keyA = a;
+    keyB = b;
+    downA = false;
+    downB = false;
     active = false;
-    ateMod2 = false;
-    ctrlTime = 0;
-    modTime = 0;
+    ateA = false;
+    ateB = false;
+    maskA = false;
+    maskB = false;
+    timeA = 0;
+    timeB = 0;
   }
 
   private static void Emit(string line) {
+    if (Trace != null) { Trace.Add(line); return; }
     Console.WriteLine(line);
     Console.Out.Flush();
   }
@@ -191,44 +242,59 @@ public static class OpenFlowChord {
       long message = wParam.ToInt64();
       bool down = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
       bool up = message == WM_KEYUP || message == WM_SYSKEYUP;
-      bool swallow = false;
-      bool ctrlKey = IsCtrl(info.vkCode) || IsCtrlScan(info);
-      bool modKey = IsMod2(info.vkCode) && !ctrlKey;
-      if (down) {
-        if (ctrlKey) {
-          ctrl = true;
-          ctrlTime = info.time;
-          mod2 = Mod2Held();
-        }
-        if (modKey) {
-          mod2 = true;
-          modTime = info.time;
-          ctrl = CtrlHeld();
-        }
-        bool both = ctrl && mod2 && ctrlTime != 0 && modTime != 0 && ctrlTime != modTime;
-        if (both && !active) {
-          active = true;
-          ateMod2 = true;
-          Emit("dictate-down " + GetForegroundWindow().ToInt64());
-        }
-        if (active && (ctrlKey || modKey)) swallow = true;
-      } else if (up) {
-        if (ctrlKey) ctrl = false;
-        if (modKey) mod2 = false;
-        if (modKey && ateMod2) {
-          swallow = true;
-          ateMod2 = false;
-        }
-        if (!ctrlKey) ctrl = ctrl && CtrlHeld();
-        if (!modKey) mod2 = mod2 && Mod2Held();
-        if (active && !(ctrl && mod2)) {
-          active = false;
-          Emit("dictate-up");
-        }
-      }
-      if (swallow) return (IntPtr)1;
+      if (Feed(info.vkCode, info.scanCode, down, up, info.time)) return (IntPtr)1;
     }
     return CallNextHookEx(hook, nCode, wParam, lParam);
+  }
+
+  // Shortcut state machine; returns true when the key event must be swallowed.
+  // The key that completes the shortcut is swallowed together with its release, so
+  // the focused app never sees it; the key pressed first passes through normally.
+  public static bool Feed(uint vk, uint scan, bool down, bool up, uint time) {
+    if (recording) {
+      if (unchecked(Environment.TickCount - recordUntil) < 0) {
+        if (down && recordDown.Add(vk)) Emit("rec-key " + vk + " " + (MapVirtualKey(vk, 2) & 0xFFFF));
+        if (up) recordDown.Remove(vk);
+        return true;
+      }
+      recording = false;
+      recordDown.Clear();
+    }
+    int a = keyA, b = keyB;
+    bool isA = Matches(a, vk, scan);
+    bool isB = !isA && Matches(b, vk, scan);
+    if (!isA && !isB) return false;
+    bool swallow = false;
+    if (down) {
+      if (isA) { downA = true; timeA = time; downB = downB && KeyHeld(b); }
+      if (isB) { downB = true; timeB = time; downA = downA && KeyHeld(a); }
+      bool both = downA && downB && timeA != 0 && timeB != 0 && timeA != timeB;
+      if (both && !active) {
+        active = true;
+        ateA = isA;
+        ateB = isB;
+        maskA = !isA && NeedsMask(a);
+        maskB = !isB && NeedsMask(b);
+        Emit("dictate-down " + GetForegroundWindow().ToInt64());
+      }
+      if (active) swallow = true;
+    } else if (up) {
+      if (isA) {
+        downA = false;
+        if (ateA) { swallow = true; ateA = false; }
+        else if (maskA) { Mask(); maskA = false; }
+      }
+      if (isB) {
+        downB = false;
+        if (ateB) { swallow = true; ateB = false; }
+        else if (maskB) { Mask(); maskB = false; }
+      }
+      if (active && !(downA && downB)) {
+        active = false;
+        Emit("dictate-up");
+      }
+    }
+    return swallow;
   }
 
   private static void Tap(ushort vk, bool up) {

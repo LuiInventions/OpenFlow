@@ -17,7 +17,9 @@
     image: svg('<rect x="4" y="5" width="16" height="14" rx="2"></rect><circle cx="9" cy="10" r="1.3"></circle><path d="M7 16.5 11 12l3 3 2-2 3 3.5"></path>'),
   };
 
+  // Accepts the two key labels from settings (shortcutKeys) or a preset id.
   function keysFor(shortcut) {
+    if (Array.isArray(shortcut) && shortcut.length === 2) return shortcut.map(key => String(key).replace(/[<>&"]/g, ""));
     if (shortcut === "ctrl+space") return ["Ctrl", "Space"];
     if (shortcut === "ctrl+alt") return ["Ctrl", "Alt"];
     if (shortcut === "ctrl+shift") return ["Ctrl", "Shift"];

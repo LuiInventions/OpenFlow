@@ -734,6 +734,47 @@ h1 {
   color: var(--fg);
 }
 
+/* Own shortcut box: same size as the presets; text sits on the kbd line height. */
+.shortcut-own-text {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+.shortcut-own:not([aria-checked="true"]) .shortcut-own-text {
+  color: var(--muted);
+}
+
+.shortcut-own.is-recording {
+  border-style: dashed;
+  animation: shortcut-record 1.4s ease-in-out infinite;
+}
+
+.shortcut-own-text.is-error {
+  color: var(--red-600, #dc2626);
+}
+
+.shortcut-own-wait {
+  color: var(--muted);
+  animation: shortcut-wait 1s steps(2, start) infinite;
+}
+
+@keyframes shortcut-record {
+  50% { border-color: var(--sand-700); }
+}
+
+@keyframes shortcut-wait {
+  to { visibility: hidden; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shortcut-own.is-recording, .shortcut-own-wait { animation: none; }
+}
+
 .mode-toggle-card {
   display: flex;
   align-items: center;

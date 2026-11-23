@@ -474,7 +474,7 @@
     if (window.openflow) {
       window.openflow.on("note-show", async (data) => {
         noteSettings = await window.openflow.dispatch("settings.get");
-        if (noteChrome) noteChrome.setShortcut(noteSettings.dictationShortcut);
+        if (noteChrome) noteChrome.setShortcut(noteSettings.shortcutKeys || noteSettings.dictationShortcut);
         await onShow(data);
         mountSparkle();
         if (sparkle) sparkle.onExternalChange();
@@ -492,7 +492,7 @@
       });
       window.openflow.dispatch("settings.get").then((settings) => {
         noteSettings = settings || {};
-        if (noteChrome) noteChrome.setShortcut(noteSettings.dictationShortcut);
+        if (noteChrome) noteChrome.setShortcut(noteSettings.shortcutKeys || noteSettings.dictationShortcut);
         mountSparkle();
       }).catch(() => {});
       onShow({});

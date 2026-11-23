@@ -30,7 +30,7 @@ contextBridge.exposeInMainWorld("openflow", {
     return ipcRenderer.invoke("dispatch", action, payload || {});
   },
   on(channel, listener) {
-    if (channel !== "overlay-state" && channel !== "dictate-toggle" && channel !== "bar-command" && channel !== "note-show" && channel !== "note-voice" && channel !== "shot-clear" && channel !== "desk-refresh" && channel !== "model-install-progress" && channel !== "note-history") return () => {};
+    if (channel !== "overlay-state" && channel !== "dictate-toggle" && channel !== "bar-command" && channel !== "note-show" && channel !== "note-voice" && channel !== "shot-clear" && channel !== "desk-refresh" && channel !== "model-install-progress" && channel !== "note-history" && channel !== "shortcut-key") return () => {};
     const wrapped = (_event, data) => listener(data);
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
