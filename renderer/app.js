@@ -20,7 +20,6 @@ const state = {
   confirmDeleteId: null,
   confirmDeleteCommandId: null,
   confirmSttEngine: null,
-  confirmNoteProvider: null,
   askKey: false,
   onboardingStep: null,
   onboardingKey: "",
@@ -31,10 +30,6 @@ const state = {
   draftVoiceNote: null,
   sttInfoParakeet: false,
   sttInfoOpenai: false,
-  noteInfoLocal: false,
-  noteInfoOpenai: false,
-  noteKeyTest: "",
-  noteModelProgress: null,
   usageKind: "stt",
   usageMenuOpen: false,
 };
@@ -563,10 +558,12 @@ function settingsHtml() {
     return `<button type="button" class="shortcut-option" role="radio" data-shortcut-select="${item.id}" aria-checked="${checked}"><span class="shortcut-keys">${item.keys}</span></button>`;
   }).join("");
   const modeTitle = isToggle ? "Press Once to Start / Second Time to Stop" : "Hold Shortcut to Dictate";
+  const soundsOn = settings.sounds !== false;
+  const soundCard = `<div class="mode-toggle-card"><div class="mode-toggle-copy"><strong>Dictation Sounds</strong><span>Play sound cues when dictation starts or finishes.</span></div><div class="mode-slider-wrap"><span class="mode-slider-label${!soundsOn ? " active" : ""}">Off</span><button type="button" class="switch-btn" role="switch" data-dictation-sounds-toggle aria-checked="${soundsOn ? "true" : "false"}" aria-label="Dictation Sounds"><span class="switch-thumb"></span></button><span class="mode-slider-label${soundsOn ? " active" : ""}">On</span></div></div>`;
   const modeDesc = isToggle
     ? "Press the shortcut once to start recording, and press it a second time to finish."
     : "Keep the shortcut held down while speaking and release to finish dictation.";
-  const dictationCard = `<div class="settings-card"><div class="section-label">Dictation</div><div class="shortcut-grid" role="radiogroup" aria-label="Dictation Shortcut">${shortcutHtml}</div><div class="mode-toggle-card"><div class="mode-toggle-copy"><strong>${modeTitle}</strong><span>${modeDesc}</span></div><div class="mode-slider-wrap"><span class="mode-slider-label${!isToggle ? " active" : ""}">Hold</span><button type="button" class="switch-btn" role="switch" data-dictation-mode-toggle aria-checked="${isToggle ? "true" : "false"}" aria-label="Toggle between Hold to Dictate and Press to Start/Stop"><span class="switch-thumb"></span></button><span class="mode-slider-label${isToggle ? " active" : ""}">Start / Stop</span></div></div></div>`;
+  const dictationCard = `<div class="settings-card"><div class="section-label">Dictation</div><div class="shortcut-grid" role="radiogroup" aria-label="Dictation Shortcut">${shortcutHtml}</div><div class="mode-toggle-card"><div class="mode-toggle-copy"><strong>${modeTitle}</strong><span>${modeDesc}</span></div><div class="mode-slider-wrap"><span class="mode-slider-label${!isToggle ? " active" : ""}">Hold</span><button type="button" class="switch-btn" role="switch" data-dictation-mode-toggle aria-checked="${isToggle ? "true" : "false"}" aria-label="Toggle between Hold to Dictate and Press to Start/Stop"><span class="switch-thumb"></span></button><span class="mode-slider-label${isToggle ? " active" : ""}">Start / Stop</span></div></div>${soundCard}</div>`;
   const hint = settings.hasKey ? "Saved locally (enter a new key to replace)" : "sk-... (optional with Parakeet v3)";
   const ask = (sttEngine === "openai" && (state.askKey || !settings.hasKey))
     ? `<div class="prompt-banner">Please enter your OpenAI API key to use cloud speech recognition, or switch to Parakeet v3 (Local).</div>`
@@ -639,71 +636,6 @@ function openaiCardHtml(sttEngine) {
   const manageCard = `<div class="settings-card manage-elements-card"><div class="section-label">Manage Elements</div><div class="bubble-preview-wrap"><div class="bubble-preview-pill" id="bubble-preview-pill">${previewItemsHtml}</div></div>${removedShelfHtml}<div class="bubble-manage-actions"><button type="button" class="btn-secondary" id="bubble-reset">Reset to Default</button><button type="button" class="btn-primary" id="bubble-save">Save Changes</button></div></div>`;
 
   return `${sttCard}${dictationCard}${bubbleCard}${manageCard}`;
-}
-
-function formatBytes(bytes) {
-  const value = Number(bytes);
-  if (!Number.isFinite(value) || value < 0) return "";
-  if (value < 1024 * 1024) return `${Math.max(1, Math.round(value / 1024))} KB`;
-  if (value < 1024 * 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-}
-
-function noteModelLine(model) {
-  const progress = state.noteModelProgress;
-  if (progress && progress.id === model.id && progress.error) return progress.error;
-  if (progress && progress.id === model.id && !progress.done && progress.percent != null) {
-    const received = formatBytes(progress.received);
-    const speed = progress.bps ? `${(progress.bps / (1024 * 1024)).toFixed(1)} MB/s` : "";
-    return `Downloading ${progress.percent}%${received ? ` · ${received}` : ""}${speed ? ` · ${speed}` : ""}`;
-  }
-  if (model.downloaded) return "Ready on this PC. The note stays on this device.";
-  return "Download required before this model can be selected.";
-}
-
-async function openLocalDownload(id) {
-  const current = state.noteModelProgress;
-  state.noteModelProgress = current && current.id === id && !current.done && !current.error
-    ? current
-    : { id, percent: 0, received: 0, bps: 0 };
-  await window.openflow.dispatch("notes.model.openDownload", { id, selectWhenReady: true });
-  render();
-}
-
-function noteInfoIcon(active) {
-  if (active) {
-    return `<svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="3" x2="13" y2="13"></line><line x1="13" y1="3" x2="3" y2="13"></line></svg>`;
-  }
-  return `<svg width="9" height="9" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="3.5" r="1.5"/><rect x="6.5" y="7" width="3" height="6" rx="1"/></svg>`;
-}
-
-function noteModelChoice(settings) {
-  const localId = settings.noteImproveLocalModel || "qwen2.5-3b-instruct-q4";
-  const openaiId = settings.noteImproveModel || "gpt-5.4-nano";
-  const localRow = (settings.noteModels || []).find((model) => model.id === localId) || {
-    id: localId,
-    downloaded: false,
-    approxBytes: localId === "llama-3.2-3b-instruct-q4" ? 2000000000 : 2100000000,
-  };
-  const llama = localId === "llama-3.2-3b-instruct-q4";
-  return {
-    localId,
-    openaiId,
-    localRow,
-    localTitle: llama ? "Llama 3.2 3B Instruct" : "Qwen2.5 3B Instruct",
-    localInfo: llama ? "Llama 3.2 3B" : "Qwen2.5 3B",
-    localTagline: llama ? "On this PC · Q4_K_M" : "On this PC · Q4_K_M",
-    localSize: llama ? "~2.0 GB" : "~2.1 GB",
-  };
-}
-
-function noteEngineCard(provider, title, detail, infoTitle, tagline, facts, selected, pinned, statusAttr, extra) {
-  const rows = facts.map((fact) => `<div class="engine-metric-row"><div class="engine-metric-labels"><span>${esc(fact.label)}</span><strong>${esc(fact.value)}</strong></div></div>`).join("");
-  const status = statusAttr ? ` ${statusAttr}` : "";
-  const extras = extra || {};
-  const locked = extras.locked ? " is-locked" : "";
-  const bar = extras.bar || "";
-  return `<div role="radio" tabindex="0" class="engine-option${pinned ? " is-pinned" : ""}${locked}" data-note-provider="${esc(provider)}" aria-checked="${selected ? "true" : "false"}"><div class="engine-normal-view"><div class="engine-head"><strong>${esc(title)}</strong><button type="button" class="engine-info-btn" data-note-info="${esc(provider)}" title="Model details" aria-label="Model details">${noteInfoIcon(false)}</button></div><p${status}>${esc(detail)}</p>${bar}</div><div class="engine-info-view"><div class="engine-info-head"><div class="engine-info-meta"><strong class="engine-info-title">${esc(infoTitle)}</strong><span class="engine-info-tagline">${esc(tagline)}</span></div><button type="button" class="engine-info-btn active" data-note-info="${esc(provider)}" title="Close details" aria-label="Close details">${noteInfoIcon(true)}</button></div><div class="engine-metrics">${rows}</div></div></div>`;
 }
 
 function apiKeyMessage(settings) {
@@ -1128,14 +1060,6 @@ function paintConfirmModal() {
     host.innerHTML = `<div class="onboarding-card" role="dialog" aria-modal="true"><div><h2>Switch Speech-to-Text Model?</h2><p class="sub">Use <strong>${esc(label)}</strong> for all dictation sessions?</p></div><div class="onboarding-actions"><button type="button" class="btn-secondary" data-confirm-cancel>Cancel</button><button type="button" class="btn-primary" data-confirm-stt-ok>OK</button></div></div>`;
     return;
   }
-  if (state.confirmNoteProvider) {
-    const settings = (state.desk && state.desk.settings) || {};
-    const choice = noteModelChoice(settings);
-    const label = state.confirmNoteProvider === "local" ? choice.localTitle : choice.openaiId;
-    host.hidden = false;
-    host.innerHTML = `<div class="onboarding-card" role="dialog" aria-modal="true"><div><h2>Switch note model?</h2><p class="sub">Use <strong>${esc(label)}</strong> for note improvement?</p></div><div class="onboarding-actions"><button type="button" class="btn-secondary" data-confirm-cancel>Cancel</button><button type="button" class="btn-primary" data-confirm-note-ok>OK</button></div></div>`;
-    return;
-  }
   if (state.confirmDeleteCommandId) {
     const cmd = ((state.desk && state.desk.commands) || []).find((row) => row.id === state.confirmDeleteCommandId);
     const title = cmd && cmd.name ? `${cmd.name}${cmd.extension}` : "this command";
@@ -1453,21 +1377,20 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    const soundsToggle = event.target.closest("[data-dictation-sounds-toggle]");
+    if (soundsToggle && window.openflow) {
+      const settings = (state.desk && state.desk.settings) || {};
+      await window.openflow.dispatch("settings.save", { sounds: settings.sounds === false });
+      await load();
+      return;
+    }
+
     const noteEnabled = event.target.closest("[data-note-improve-enabled]");
     if (noteEnabled && window.openflow) {
       const settings = (state.desk && state.desk.settings) || {};
       if (!settings.hasWorkingKey || noteEnabled.disabled) return;
       await window.openflow.dispatch("settings.save", { noteImproveEnabled: !settings.noteImproveEnabled });
       await load();
-      return;
-    }
-    const noteInfo = event.target.closest("[data-note-info]");
-    if (noteInfo) {
-      event.stopPropagation();
-      event.preventDefault();
-      if (noteInfo.dataset.noteInfo === "local") state.noteInfoLocal = !state.noteInfoLocal;
-      else state.noteInfoOpenai = !state.noteInfoOpenai;
-      render();
       return;
     }
     const cleanupEnabled = event.target.closest("[data-dictation-cleanup-enabled]");
@@ -1478,59 +1401,6 @@ document.addEventListener("DOMContentLoaded", () => {
       await load();
       return;
     }
-    const noteProvider = event.target.closest("[data-note-provider]");
-    if (noteProvider && window.openflow) {
-      const next = noteProvider.dataset.noteProvider === "local" ? "local" : "openai";
-      await window.openflow.dispatch("settings.save", { noteImproveProvider: next });
-      await load();
-      return;
-    }
-    const noteOpenAIModel = event.target.closest("[data-note-openai-model]");
-    if (noteOpenAIModel && window.openflow) {
-      await window.openflow.dispatch("settings.save", { noteImproveModel: noteOpenAIModel.dataset.noteOpenaiModel });
-      await load();
-      return;
-    }
-    const noteLocalModel = event.target.closest("[data-note-local-model]");
-    if (noteLocalModel && window.openflow) {
-      await window.openflow.dispatch("settings.save", { noteImproveLocalModel: noteLocalModel.dataset.noteLocalModel });
-      await load();
-      return;
-    }
-    const noteAuto = event.target.closest("[data-note-auto]");
-    if (noteAuto && window.openflow) {
-      const current = !state.desk || !state.desk.settings || state.desk.settings.noteImproveAutoSuggestions !== false;
-      await window.openflow.dispatch("settings.save", { noteImproveAutoSuggestions: !current });
-      await load();
-      return;
-    }
-    const noteDownload = event.target.closest("[data-note-download]");
-    if (noteDownload && window.openflow) {
-      await openLocalDownload(noteDownload.dataset.noteDownload);
-      return;
-    }
-    const noteCancel = event.target.closest("[data-note-cancel]");
-    if (noteCancel && window.openflow) {
-      await window.openflow.dispatch("notes.model.cancel", { id: noteCancel.dataset.noteCancel });
-      state.noteModelProgress = null;
-      await load();
-      return;
-    }
-    const noteDelete = event.target.closest("[data-note-delete]");
-    if (noteDelete && window.openflow) {
-      await window.openflow.dispatch("notes.model.delete", { id: noteDelete.dataset.noteDelete });
-      state.noteModelProgress = null;
-      await load();
-      return;
-    }
-    const noteTest = event.target.closest("[data-note-test-key]");
-    if (noteTest && window.openflow) {
-      const result = await window.openflow.dispatch("notes.model.testKey");
-      state.noteKeyTest = result && result.message ? result.message : "Key test failed.";
-      render();
-      return;
-    }
-
     const bubbleSelect = event.target.closest("[data-bubble-select]");
     if (bubbleSelect && window.openflow) {
       const nextStyle = bubbleSelect.dataset.bubbleSelect;
@@ -1659,7 +1529,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (event.target.closest("[data-confirm-cancel]") || event.target === document.querySelector("#confirm-modal")) {
       state.confirmDeleteId = null;
       state.confirmSttEngine = null;
-      state.confirmNoteProvider = null;
       paintConfirmModal();
       return;
     }
@@ -1668,30 +1537,6 @@ document.addEventListener("DOMContentLoaded", () => {
       state.confirmSttEngine = null;
       await window.openflow.dispatch("settings.save", { sttEngine: nextEngine, onboardingDone: true });
       if (nextEngine === "parakeet") state.askKey = false;
-      await load();
-      return;
-    }
-    if (event.target.closest("[data-confirm-note-ok]") && state.confirmNoteProvider) {
-      const next = state.confirmNoteProvider;
-      state.confirmNoteProvider = null;
-      const settings = (state.desk && state.desk.settings) || {};
-      const choice = noteModelChoice(settings);
-      if (next === "local") {
-        if (!choice.localRow.downloaded) {
-          await openLocalDownload(choice.localId);
-          paintConfirmModal();
-          return;
-        }
-        await window.openflow.dispatch("settings.save", {
-          noteImproveProvider: "local",
-          noteImproveLocalModel: choice.localId,
-        });
-      } else {
-        await window.openflow.dispatch("settings.save", {
-          noteImproveProvider: "openai",
-          noteImproveModel: choice.openaiId,
-        });
-      }
       await load();
       return;
     }
@@ -2117,28 +1962,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (!window.openflow) return;
   window.openflow.on("note-voice", onEditorVoice);
-  window.openflow.on("note-improve-progress", (payload) => {
-    state.noteModelProgress = payload || null;
-    const status = document.querySelector("[data-note-local-status]");
-    const track = document.querySelector("[data-note-local-track]");
-    const bar = document.querySelector("[data-note-local-bar]");
-    if (payload && payload.done) {
-      if (track) track.hidden = true;
-      load().catch(() => {});
-      return;
-    }
-    if (!status || !payload) return;
-    if (payload.error) {
-      status.textContent = payload.error;
-      if (track) track.hidden = true;
-      return;
-    }
-    if (track) track.hidden = false;
-    if (bar) bar.style.width = `${Math.max(0, Math.min(100, Number(payload.percent) || 0))}%`;
-    const received = formatBytes(payload.received);
-    const speed = payload.bps ? `${(payload.bps / (1024 * 1024)).toFixed(1)} MB/s` : "";
-    status.textContent = `Downloading ${payload.percent || 0}%${received ? ` · ${received}` : ""}${speed ? ` · ${speed}` : ""}`;
-  });
   window.openflow.on("desk-refresh", (payload) => {
     load(payload).catch(() => {});
   });

@@ -9,7 +9,6 @@ const { createStore } = require("../src/store");
 const { createTextCompletion } = require("../src/text-completion");
 const { createDictationCleanup, COMPACT_SYSTEM, parseCleaned, pieces } = require("../src/dictation-cleanup");
 const { commitDictation } = require("../src/dictation");
-const { createLlamaHost } = require("../src/llama-host");
 
 function enabledStore() {
   const store = createStore(":memory:");
@@ -154,35 +153,6 @@ test("failed cleanup pastes the original once; empty noise does not paste", asyn
       { text: "Ähm, hallo.", usedPhrases: [], followUps: [] }, { paste: true, sttEngine: "parakeet" });
     assert.deepEqual(pasted, result.text ? [result.text] : []);
     assert.equal(store.listHistory().length, 1);
-  }
-});
-
-test("shared local runtime serializes notes and cleanup and survives cancellation", async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openflow-worker-"));
-  const workerPath = path.join(dir, "worker.cjs");
-  fs.writeFileSync(workerPath, `
-    const {parentPort}=require('node:worker_threads');
-    let busy=false;
-    parentPort.on('message', m=>{
-      if(busy) { parentPort.postMessage({type:'error',id:m.id,message:'overlapping inference'}); return; }
-      busy=true;
-      setTimeout(()=>{busy=false;parentPort.postMessage({type:'result',id:m.id,text:m.user})},m.user==='slow'?1000:30);
-    });
-  `);
-  const host = createLlamaHost({ workerPath, idleMs: 1000 });
-  try {
-    assert.deepEqual(await Promise.all([host.complete({ user: "note" }), host.complete({ user: "cleanup" })]), ["note", "cleanup"]);
-    const controller = new AbortController();
-    const cancelled = host.complete({ user: "slow", signal: controller.signal });
-    const rejected = assert.rejects(cancelled, { name: "AbortError" });
-    await new Promise(resolve => setTimeout(resolve, 30));
-    controller.abort();
-    const next = host.complete({ user: "after cancellation" });
-    await rejected;
-    assert.equal(await next, "after cancellation");
-  } finally {
-    await host.unload();
-    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 

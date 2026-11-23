@@ -2,11 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const os = require("node:os");
-const path = require("node:path");
 const { createStore } = require("../src/store");
-const { createModelLibrary } = require("../src/note-models");
 const { createNoteSparkle } = require("../src/note-sparkle");
 const improve = require("../src/note-improve");
 
@@ -91,14 +87,6 @@ test("suggestion parsing keeps three short unique chips or falls back", () => {
   assert.equal(improve.asMarkdown("Erster Punkt\nZweiter Punkt"), "- Erster Punkt\n- Zweiter Punkt");
   assert.equal(improve.contentHash("abc"), improve.contentHash("abc"));
   assert.notEqual(improve.contentHash("abc"), improve.contentHash("abd"));
-});
-
-test("local notes that exceed one context window are split, not dropped", () => {
-  const note = Array.from({ length: 80 }, () => "Punkt bleibt als Fakt erhalten.").join("\n\n");
-  const plan = improve.planLocalPieces(note, 2000);
-  assert.equal(plan.mode, "chunks");
-  assert.ok(plan.parts.length > 1);
-  assert.equal(improve.planLocalPieces("x".repeat(5000), 2000).mode, "too_long");
 });
 
 test("sparkle flow replaces the note, keeps a snapshot, and undo restores it", async () => {
@@ -398,88 +386,4 @@ test("suggestion cache is reused until the note hash changes", async () => {
   const stale = sparkle.cached({ id: pad.id, content: `${content} mehr` });
   assert.equal(stale.fresh, false);
   assert.deepEqual(stale.suggestions, first.suggestions);
-});
-
-test("model download checks the checksum and can be cancelled or deleted", async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openflow-models-"));
-  const body = Buffer.from("gguf-model-bytes");
-  const goodHash = require("node:crypto").createHash("sha256").update(body).digest("hex");
-  const catalog = [{
-    id: "tiny",
-    label: "Tiny",
-    filename: "tiny.gguf",
-    url: "https://example.test/tiny.gguf",
-    sha256: goodHash,
-    approxBytes: body.length,
-  }];
-  const library = createModelLibrary({
-    dir,
-    catalog,
-    minBytes: 1,
-    fetchImpl: async () => ({
-      ok: true,
-      headers: { get: () => String(body.length) },
-      body: {
-        getReader() {
-          let sent = false;
-          return {
-            async read() {
-              if (sent) return { done: true, value: undefined };
-              sent = true;
-              return { done: false, value: body };
-            },
-          };
-        },
-      },
-    }),
-  });
-  const saved = await library.download("tiny");
-  assert.equal(saved.downloaded, true);
-  assert.equal(saved.size, body.length);
-  const removed = library.remove("tiny");
-  assert.equal(removed.downloaded, false);
-  assert.equal(fs.existsSync(path.join(dir, "tiny.gguf")), false);
-
-  const bad = createModelLibrary({
-    dir,
-    catalog: [{ ...catalog[0], sha256: "deadbeef" }],
-    minBytes: 1,
-    fetchImpl: library && (async () => ({
-      ok: true,
-      headers: { get: () => String(body.length) },
-      body: {
-        getReader() {
-          let sent = false;
-          return {
-            async read() {
-              if (sent) return { done: true, value: undefined };
-              sent = true;
-              return { done: false, value: body };
-            },
-          };
-        },
-      },
-    })),
-  });
-  await assert.rejects(() => bad.download("tiny"), /Checksum/);
-  assert.equal(fs.existsSync(path.join(dir, "tiny.gguf")), false);
-
-  let sawAbort = false;
-  const hanging = createModelLibrary({
-    dir,
-    catalog,
-    minBytes: 1,
-    fetchImpl: (_url, init) => new Promise((_resolve, reject) => {
-      init.signal.addEventListener("abort", () => {
-        sawAbort = true;
-        const error = new Error("aborted");
-        error.name = "AbortError";
-        reject(error);
-      });
-    }),
-  });
-  const pending = hanging.download("tiny");
-  hanging.cancel("tiny");
-  await assert.rejects(pending);
-  assert.equal(sawAbort, true);
 });

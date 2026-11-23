@@ -1,0 +1,16 @@
+{
+  "version": "1.5.28-local.1",
+  "previousInstalledBytes": 1182598320,
+  "installedBytes": 430725405,
+  "installedSavedBytes": 751872915,
+  "installedReductionPercent": 63.58,
+  "previousInstallerBytes": 440477384,
+  "installerBytes": 118610272,
+  "installerReductionPercent": 73.07,
+  "ownBytes": 606410,
+  "unitTests": 85,
+  "retainedHandlers": 52,
+  "originalHandlers": 84,
+  "rendererDispatchOperations": 39,
+  "installedDataCollectionsUnchanged": true
+}

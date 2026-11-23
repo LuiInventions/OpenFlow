@@ -17,9 +17,7 @@ const { createApiKeyStatus } = require("../src/api-key-status");
 const { createTextCompletion } = require("../src/text-completion");
 const { createDictationCleanup, active: cleanupActive, legacyDictationUsage } = require("../src/dictation-cleanup");
 const { commitDictation } = require("../src/dictation");
-const { createModelLibrary } = require("../src/note-models");
-const { createLlamaHost, llamaRuntimeAvailable } = require("../src/llama-host");
-const { normalizeOpenAIModel, normalizeLocalModel, TEXT_MODELS } = require("../src/note-improve");
+const { normalizeOpenAIModel, TEXT_MODELS } = require("../src/note-improve");
 
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 
@@ -32,10 +30,8 @@ let overlayWindow = null;
 let noteWindow = null;
 let noteSessions = [];
 let voiceNoteWindow = null;
-let noteDownloadWindow = null;
 let noteHistoryWindow = null;
 let noteHistoryNoteId = "";
-let selectLocalWhenReady = false;
 let tray = null;
 let chord = null;
 let store = null;
@@ -44,8 +40,6 @@ let textCompletion = null;
 let apiKeyStatus = null;
 let cachedApiKey;
 let dictationCleanup = null;
-let noteModels = null;
-let noteLlama = null;
 let quitting = false;
 let overlayTimer = null;
 let dictating = false;
@@ -92,8 +86,13 @@ function toggleDictate() {
 }
 
 function scriptCopy(name) {
-  const target = path.join(app.getPath("userData"), name);
-  fs.copyFileSync(path.join(__dirname, name), target);
+  const userData = app.getPath("userData");
+  const target = path.join(userData, name);
+  // Read ASAR contents directly. copyFileSync extracts to an Electron-owned
+  // temporary file, which can disappear before the native copy opens it.
+  const contents = fs.readFileSync(path.join(__dirname, name));
+  fs.mkdirSync(userData, { recursive: true });
+  fs.writeFileSync(target, contents);
   return target;
 }
 
@@ -823,148 +822,13 @@ function ensureCommandsScripts() {
   } catch {}
 }
 
-function ensureNoteModels() {
-  if (!noteModels) noteModels = createModelLibrary({ dir: path.join(app.getPath("userData"), "note-models") });
-  return noteModels;
-}
-
-function ensureNoteLlama() {
-  if (!noteLlama) noteLlama = createLlamaHost({ workerPath: path.join(root, "src", "llama-worker.js") });
-  return noteLlama;
-}
-
-function sendImproveProgress(payload) {
-  const targets = [mainWindow, noteDownloadWindow, ...liveNoteSessions().map((session) => session.win)];
-  const seen = new Set();
-  for (const win of targets) {
-    if (!win || win.isDestroyed() || seen.has(win)) continue;
-    seen.add(win);
-    win.webContents.send("note-improve-progress", payload);
-  }
-}
-
 function refreshDesk() {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("desk-refresh", {});
 }
 
-function selectDownloadedLocalModel(id) {
-  if (!store || !selectLocalWhenReady) return;
-  store.updateSettings({
-    noteImproveProvider: "local",
-    noteImproveLocalModel: normalizeLocalModel(id),
-  });
-  selectLocalWhenReady = false;
-  refreshDesk();
-  applyFloatingBubbleState();
-}
-
-function showNoteDownloadWindow(id) {
-  const deliver = () => {
-    const row = ensureNoteModels().status(id);
-    if (!row) return;
-    if (row.progress) sendImproveProgress(row.progress);
-    else if (row.downloaded) {
-      sendImproveProgress({
-        id,
-        percent: 100,
-        received: row.size,
-        total: row.size || row.approxBytes,
-        bps: 0,
-        done: true,
-      });
-    }
-  };
-  if (noteDownloadWindow && !noteDownloadWindow.isDestroyed()) {
-    if (noteDownloadWindow.isMinimized()) noteDownloadWindow.restore();
-    noteDownloadWindow.show();
-    noteDownloadWindow.focus();
-    deliver();
-    return;
-  }
-  noteDownloadWindow = new BrowserWindow({
-    width: 480,
-    height: 280,
-    resizable: false,
-    minimizable: true,
-    maximizable: false,
-    closable: true,
-    center: true,
-    show: false,
-    title: "Downloading local note model",
-    icon: path.join(root, "build", "icon.png"),
-    backgroundColor: "#faf9f7",
-    autoHideMenuBar: true,
-    webPreferences: {
-      preload: path.join(__dirname, "preload.cjs"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  });
-  noteDownloadWindow.on("closed", () => {
-    noteDownloadWindow = null;
-  });
-  noteDownloadWindow.webContents.setBackgroundThrottling(false);
-  noteDownloadWindow.webContents.once("did-finish-load", deliver);
-  noteDownloadWindow.loadFile(path.join(root, "renderer", "note-model-download.html"), { query: { id } });
-  noteDownloadWindow.once("ready-to-show", () => {
-    if (!noteDownloadWindow || noteDownloadWindow.isDestroyed()) return;
-    noteDownloadWindow.show();
-    noteDownloadWindow.focus();
-  });
-}
-
-function beginNoteModelDownload(id, selectWhenReady) {
-  const modelId = normalizeLocalModel(id || "qwen2.5-3b-instruct-q4");
-  selectLocalWhenReady = Boolean(selectWhenReady);
-  const row = ensureNoteModels().status(modelId);
-  showNoteDownloadWindow(modelId);
-  if (row && row.downloaded) {
-    selectDownloadedLocalModel(modelId);
-    sendImproveProgress({
-      id: modelId,
-      percent: 100,
-      received: row.size,
-      total: row.size || row.approxBytes,
-      bps: 0,
-      done: true,
-    });
-    return ensureNoteModels().statusList();
-  }
-  if (row && row.progress && !row.progress.done && !row.progress.error) {
-    sendImproveProgress(row.progress);
-    return ensureNoteModels().statusList();
-  }
-  ensureNoteModels().download(modelId, {
-    onProgress: (progress) => sendImproveProgress(progress),
-  }).then((saved) => {
-    if (!saved || !saved.downloaded) return;
-    selectDownloadedLocalModel(modelId);
-    refreshDesk();
-    applyFloatingBubbleState();
-    sendImproveProgress({
-      id: modelId,
-      percent: 100,
-      received: saved.size || saved.received,
-      total: saved.size || saved.approxBytes,
-      bps: 0,
-      done: true,
-    });
-  }).catch((error) => {
-    selectLocalWhenReady = false;
-    const aborted = error && error.name === "AbortError";
-    sendImproveProgress({
-      id: modelId,
-      error: aborted ? "Download cancelled." : "Download failed.",
-    });
-  });
-  return ensureNoteModels().statusList();
-}
-
 function ensureTextCompletion() {
   if (!textCompletion) textCompletion = createTextCompletion({
-    store, readKey, keyReady: () => ensureApiKeyStatus().ready(), rejectKey: (key, message) => ensureApiKeyStatus().reject(key, message), fetchImpl: apiFetch, modelLibrary: ensureNoteModels(), llamaRuntimeAvailable,
-    completeLocal: (payload) => ensureNoteLlama().complete(payload),
+    store, readKey, keyReady: () => ensureApiKeyStatus().ready(), rejectKey: (key, message) => ensureApiKeyStatus().reject(key, message), fetchImpl: apiFetch,
   });
   return textCompletion;
 }
@@ -981,18 +845,13 @@ function ensureNoteSparkle() {
       readKey,
       textCompletion: ensureTextCompletion(),
       fetchImpl: apiFetch,
-      modelLibrary: ensureNoteModels(),
-      llamaRuntimeAvailable,
-      completeLocal: (payload) => ensureNoteLlama().complete(payload),
     });
   }
   return noteSparkle;
 }
 
 function publicSettings() {
-  try { ensureNoteModels(); } catch (_error) { /* userData is ready with the app */ }
   const settings = store.getSettings();
-  const preset = providers.defaultsFor(settings.provider);
   const sttEngine = settings.sttEngine === "openai" ? "openai" : "parakeet";
   const validShortcuts = ["ctrl+win", "ctrl+space", "ctrl+alt", "ctrl+shift"];
   const dictationShortcut = validShortcuts.includes(settings.dictationShortcut) ? settings.dictationShortcut : "ctrl+win";
@@ -1020,18 +879,7 @@ function publicSettings() {
     dictationCleanupEnabled: ensureApiKeyStatus().ready() && settings.dictationCleanupEnabled === true,
     textModelReady: ensureTextCompletion().usable(),
     textImprovementModels: TEXT_MODELS,
-    noteModels: noteModels ? noteModels.statusList() : [],
-    noteDisk: noteModels ? noteModels.disk() : { freeBytes: null },
-    llamaRuntime: llamaRuntimeAvailable(),
-    llamaState: noteLlama ? noteLlama.getStatus() : "idle",
     parakeet: parakeet.getStatus(app.getPath("userData")),
-    effective: {
-      sttModel: settings.sttModel || preset.sttModel,
-      ttsModel: settings.ttsModel || preset.ttsModel,
-      ttsVoice: settings.ttsVoice || preset.ttsVoice,
-      textModel: settings.textModel || preset.textModel,
-      voices: preset.voices,
-    },
   };
 }
 
@@ -1051,6 +899,7 @@ function applyFloatingBubbleState() {
   if (!overlayWindow.isVisible()) overlayWindow.showInactive();
   sendBar({
     type: "config",
+    sounds: settings.sounds !== false,
     floatingBubble: mode,
     bubbleElements: elements,
     voiceNoteButton: settings.voiceNoteButton !== false,
@@ -1065,7 +914,7 @@ function sendOverlay(state) {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
   clearTimeout(overlayTimer);
   const mode = !state || !state.mode || state.mode === "hidden" ? "idle" : state.mode;
-  const next = { ...state, mode, sounds: true };
+  const next = { ...state, mode, sounds: !store || store.getSettings().sounds !== false };
   if (!overlayWindow.isVisible()) overlayWindow.showInactive();
   const deliver = () => {
     if (!overlayWindow.isDestroyed()) overlayWindow.webContents.send("overlay-state", next);
@@ -1092,30 +941,6 @@ async function completeChat(requestFactory) {
   });
   const body = await providers.postJson(apiFetch, request);
   return providers.parseChatText(body);
-}
-
-const polishStyles = {
-  concise: "more concise, same meaning",
-  clarity: "clear written language, remove filler words",
-  reorder: "same statements in a more readable order",
-  structure: "same meaning, structured with paragraphs or lists where helpful",
-  tone: "same meaning and tone, cleanly written",
-};
-
-async function applyTransform(text, kind) {
-  if (kind === "prompt") {
-    return completeChat((base) => providers.instructRequest({
-      ...base,
-      prompt: "Turn the spoken input into a clear prompt. Organize intent, context, and desired outcome. Return only the prompt.",
-      context: text,
-    }));
-  }
-  const style = polishStyles[store.getSettings().polishStyle] || polishStyles.clarity;
-  return completeChat((base) => providers.rewriteRequest({
-    ...base,
-    text,
-    style,
-  }));
 }
 
 async function translateText(text, targetLanguage) {
@@ -1621,6 +1446,9 @@ const actions = {
     if (payload && (payload.dictationMode === "hold" || payload.dictationMode === "toggle")) {
       patch.dictationMode = payload.dictationMode;
     }
+    if (payload && typeof payload.sounds === "boolean") {
+      patch.sounds = payload.sounds;
+    }
     const validFloatingBubble = ["active", "dimmed", "hidden"];
     if (payload && validFloatingBubble.includes(payload.floatingBubble)) {
       patch.floatingBubble = payload.floatingBubble;
@@ -1675,18 +1503,6 @@ const actions = {
     if (patch.sttEngine) syncSttEngine();
     applyFloatingBubbleState();
     return { settings: publicSettings(), hotkeyRegistered: true };
-  },
-  "transform.set": (payload) => {
-    const kind = payload.transform === "prompt" ? "prompt" : "polish";
-    const polishStyle = Object.prototype.hasOwnProperty.call(polishStyles, payload.polishStyle)
-      ? payload.polishStyle
-      : store.getSettings().polishStyle;
-    store.updateSettings({
-      transform: kind,
-      transformAuto: Boolean(payload.transformAuto),
-      polishStyle,
-    });
-    return publicSettings();
   },
   "dictate.toggle": (payload) => {
     if (dictating) endDictate();
@@ -1774,7 +1590,6 @@ const actions = {
     pendingRefresh = null;
     return value || {};
   },
-  "commands.validateName": (payload) => commands.validateName(payload && payload.name, store.listCommands()),
   "commands.create": (payload) => {
     const saved = store.createCommand(payload || {});
     try {
@@ -1825,31 +1640,14 @@ const actions = {
     store.deletePad(payload.id);
     return true;
   },
-  "speech.transform": async (payload) => ({ text: await applyTransform(payload.text, payload.kind || "polish") }),
   "desk.snapshot": () => ({
     settings: publicSettings(),
-    dictionary: store.listDictionary(),
     history: store.listHistory(),
     pads: store.listPads(),
     commands: store.listCommands(),
     usage: flow.usageReport(store.listHistory()),
     localUsage: flow.localUsageReport(store.listHistory()),
     improveUsage: flow.noteAndDictationUsageReport(store.listAllPadVersions(), [...store.listDictationUsage(), ...legacyDictationUsage(store.listHistory())]),
-    notes: store.listNotes(),
-    meetings: store.listMeetings(),
-    events: store.listEvents(),
-    todos: store.listTodos(),
-    folders: store.listFolders(),
-    corrections: store.listCorrections(),
-    links: store.listLinks(),
-    automations: store.listAutomations(),
-    polish: store.listPolish(),
-    instruct: store.listInstruct(),
-    translations: store.listTranslations(),
-    notifications: store.listNotifications(),
-    scratchpad: store.getScratchpad(),
-    tour: flow.tourSteps(),
-    stats: flow.computeStats(store.listHistory()),
   }),
   "dictionary.save": (payload) => store.upsertDictionary(payload),
   "dictionary.delete": (payload) => store.deleteDictionary(payload.phrase),
@@ -1861,92 +1659,20 @@ const actions = {
   "notes.sparkle.cancel": (payload) => ensureNoteSparkle().cancel(payload && payload.id),
   "notes.sparkle.suggest": (payload) => ensureNoteSparkle().suggest(payload || {}),
   "notes.sparkle.cached": (payload) => ensureNoteSparkle().cached(payload || {}),
-  "notes.sparkle.versions": (payload) => ensureNoteSparkle().versions(payload && payload.id),
-  "notes.model.download": (payload) => beginNoteModelDownload(payload && payload.id, Boolean(payload && payload.selectWhenReady)),
-  "notes.model.openDownload": (payload) => beginNoteModelDownload(payload && payload.id, payload ? payload.selectWhenReady !== false : true),
-  "notes.model.minimizeDownload": () => {
-    if (noteDownloadWindow && !noteDownloadWindow.isDestroyed()) noteDownloadWindow.minimize();
-    return { ok: true };
-  },
-  "notes.model.closeDownload": () => {
-    if (noteDownloadWindow && !noteDownloadWindow.isDestroyed()) noteDownloadWindow.close();
-    return { ok: true };
-  },
-  "notes.model.cancel": (payload) => {
-    selectLocalWhenReady = false;
-    return ensureNoteModels().cancel(payload && payload.id);
-  },
-  "notes.model.delete": async (payload) => {
-    const id = payload && payload.id;
-    if (noteLlama) await noteLlama.unload();
-    const removed = ensureNoteModels().remove(id);
-    const settings = store.getSettings();
-    if (settings.noteImproveProvider === "local" && normalizeLocalModel(settings.noteImproveLocalModel) === normalizeLocalModel(id)) {
-      selectLocalWhenReady = false;
-      store.updateSettings({ noteImproveProvider: "openai" });
-    }
-    if (dictationCleanup) dictationCleanup.cancel();
-    refreshDesk();
-    applyFloatingBubbleState();
-    return removed;
-  },
-  "notes.model.testKey": async () => {
-    const state = await ensureApiKeyStatus().validate(true);
-    return { ok: state.state === "valid", message: state.message || "No API key is saved." };
-  },
   "notes.save": (payload) => store.saveNote(payload),
   "notes.versions": (payload) => store.listNoteVersions(payload.id),
   "notes.delete": (payload) => store.deleteNote(payload.id),
-  "meetings.save": (payload) => store.saveMeeting(payload),
-  "meetings.delete": (payload) => store.deleteMeeting(payload.id),
-  "events.save": (payload) => store.saveEvent(payload),
-  "events.delete": (payload) => store.deleteEvent(payload.id),
-  "todos.save": (payload) => store.saveTodo(payload),
-  "todos.delete": (payload) => store.deleteTodo(payload.id),
-  "folders.save": (payload) => store.saveFolder(payload),
-  "folders.delete": (payload) => store.deleteFolder(payload.id),
   "corrections.add": (payload) => store.addCorrection(payload),
   "corrections.delete": (payload) => store.deleteCorrection(payload.id),
-  "links.save": (payload) => store.saveLink(payload),
-  "links.delete": (payload) => store.deleteLink(payload.id),
-  "links.open": async (payload) => {
-    const url = new URL(payload.url);
-    if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("Only web URLs are allowed.");
-    await shell.openExternal(url.toString());
-  },
   "automations.save": (payload) => store.saveAutomation(payload),
   "automations.delete": (payload) => store.deleteAutomation(payload.id),
-  "scratchpad.set": (payload) => store.setScratchpad(payload.content),
-  "notifications.read": (payload) => store.markNotification(payload.id),
   "notifications.add": (payload) => store.addNotification({
     title: payload.title || "Feedback",
     body: payload.body || "",
   }),
-  "overlay.set": (payload) => {
-    sendOverlay(payload);
-    return true;
-  },
   "clipboard.copy": (payload) => {
     clipboard.writeText(String(payload.text || ""));
     return true;
-  },
-  "clipboard.paste": (payload) => {
-    pasteText(String(payload.text || ""));
-    return true;
-  },
-  "text.prepare": async (payload) => {
-    const raw = String(payload.text || "").trim();
-    if (!raw) throw new Error("No text.");
-    const prepared = flow.prepareTranscript(raw, library());
-
-    if (typeof session !== "undefined" && session.voice && prepared.text) sendNoteVoice({ type: "final", text: prepared.text });
-    return commitTranscript(raw, prepared, {
-      appName: payload.appName,
-      url: payload.url,
-      durationMs: 0,
-      paste: false,
-      overlay: false,
-    });
   },
   "speech.session": (payload) => openSpeechSession(payload),
   "speech.part": (payload) => {
@@ -2009,50 +1735,6 @@ const actions = {
       overlay: false,
     });
   }),
-  "speech.speak": async (payload) => {
-    const settings = store.getSettings();
-    const request = providers.speechRequest({
-      provider: settings.provider,
-      apiKey: readKey(),
-      text: payload.text,
-      voice: settings.ttsVoice || undefined,
-      model: settings.ttsModel || undefined,
-    });
-    const audio = await providers.postAudio(apiFetch, request);
-    return { base64: audio.bytes.toString("base64"), type: audio.type };
-  },
-  "speech.translate": async (payload) => {
-    const text = await translateText(payload.text, payload.targetLanguage);
-    return { text };
-  },
-  "speech.rewrite": async (payload) => {
-    const settings = store.getSettings();
-    const local = flow.polishLocal(payload.text);
-    if (!payload.useApi) return { text: local, local: true };
-    const output = await completeChat((base) => providers.rewriteRequest({
-      ...base,
-      text: payload.text,
-      style: payload.style || settings.tone,
-    }));
-    store.addPolish({ input_text: payload.text, output_text: output, style: payload.style || settings.tone });
-    return { text: output, local: false };
-  },
-  "speech.instruct": async (payload) => {
-    const output = await completeChat((base) => providers.instructRequest({
-      ...base,
-      prompt: payload.prompt,
-      context: payload.context || "",
-    }));
-    const row = store.addInstruct({ prompt: payload.prompt, response: output });
-    return row;
-  },
-  "speech.summarize": async (payload) => {
-    const output = await completeChat((base) => providers.summaryRequest({
-      ...base,
-      transcript: payload.transcript,
-    }));
-    return store.saveMeeting({ ...payload.meeting, summary: output, status: "summarized" });
-  },
   "file.export": async () => {
     const choice = await dialog.showSaveDialog(mainWindow, {
       title: "Export OpenFlow",

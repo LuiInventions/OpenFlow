@@ -42,7 +42,6 @@ function blank() {
       noteImproveProvider: "openai",
       noteImproveModel: DEFAULT_OPENAI_MODEL,
       textModelDefaultVersion: 0,
-      noteImproveLocalModel: "qwen2.5-3b-instruct-q4",
       noteImproveAutoSuggestions: true,
       noteImproveOnboardingDone: false,
       noteImprovePrivacyAck: false,

@@ -1,16 +1,18 @@
 {
   "name": "openflow",
-  "version": "1.5.27",
+  "version": "1.5.28",
   "author": "LuiInventions",
   "license": "GPL-3.0-only",
   "description": "Local-first voice dictation, notes, and screenshot dock for Windows. Includes local open-source Parakeet v3 STT and optional OpenAI API support.",
   "main": "electron/main.cjs",
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/flow.test.js test/providers.test.js test/store.test.js test/commands.test.js test/cues.test.js test/audio.test.js test/shot.test.js test/note-improve.test.js test/dictation-cleanup.test.js test/api-key-status.test.js test/usage.test.js test/text-models.test.js",
+    "test": "node --test test/flow.test.js test/providers.test.js test/store.test.js test/commands.test.js test/cues.test.js test/audio.test.js test/note-improve.test.js test/dictation-cleanup.test.js test/api-key-status.test.js test/usage.test.js test/text-models.test.js test/compatibility.test.js",
     "assets": "node scripts/write-assets.js",
     "dist": "electron-builder --win nsis-web --publish never",
-    "dist:local": "electron-builder --config build/local.cjs --win nsis --publish never"
+    "dist:local": "electron-builder --config build/local.cjs --win nsis --publish never",
+    "verify:package": "node scripts/verify-package.cjs",
+    "verify:script-copy": "electron scripts/verify-script-copy.cjs"
   },
   "engines": {
     "node": ">=22"
@@ -34,22 +36,23 @@
       "renderer/**/*",
       "src/**/*",
       "node_modules/sherpa-onnx-*/**/*",
-      "node_modules/node-llama-cpp/**/*",
-      "node_modules/@node-llama-cpp/win-x64/**/*",
       "build/icon.png",
       "build/icon.ico",
       "package.json"
     ],
     "asar": true,
     "asarUnpack": [
-      "**/node_modules/sherpa-onnx-*/**/*",
-      "**/node_modules/node-llama-cpp/**/*",
-      "**/node_modules/@node-llama-cpp/win-x64/**/*"
+      "**/node_modules/sherpa-onnx-*/**/*"
     ],
     "extraResources": [
       {
         "from": "vendor/flameshot/flameshot-14.0.0-win64",
-        "to": "flameshot"
+        "to": "flameshot",
+        "filter": [
+          "bin/**/*",
+          "LICENSE",
+          "!bin/vc_redist.x64.exe"
+        ]
       }
     ],
     "win": {
@@ -78,10 +81,6 @@
     "electron-builder": "26.15.3"
   },
   "dependencies": {
-    "node-llama-cpp": "3.22.2",
     "sherpa-onnx-node": "^1.13.8"
-  },
-  "optionalDependencies": {
-    "@node-llama-cpp/win-x64": "3.22.2"
   }
 }

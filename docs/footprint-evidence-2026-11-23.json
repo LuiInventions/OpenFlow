@@ -1,0 +1,687 @@
+{
+  "baseline": "GitHub b334cbb / v1.5.27 plus Dictation Sounds and ASAR script-copy fix",
+  "date": "2026-11-23",
+  "totalBytes": 1182598320,
+  "groups": {
+    "Electron and installer": 332836833,
+    "ASAR": 7750175,
+    "@node-llama-cpp/win-arm64": 1074435,
+    "@node-llama-cpp/win-x64": 32913452,
+    "@node-llama-cpp/win-x64-cuda": 182668380,
+    "@node-llama-cpp/win-x64-cuda-ext": 387667706,
+    "@node-llama-cpp/win-x64-vulkan": 73951632,
+    "@reflink/reflink-win32-x64-msvc": 361874,
+    "node-llama-cpp": 40272121,
+    "sherpa-onnx-node": 59942,
+    "sherpa-onnx-win-x64": 23452212,
+    "Other resources": 107520,
+    "Flameshot": 99482038
+  },
+  "asarContentBytes": {
+    "node_modules": 6523944,
+    "build": 5518,
+    "electron": 115985,
+    "package.json": 504,
+    "renderer": 415808,
+    "src": 143992
+  },
+  "own": {
+    "electron": {
+      "bytes": 115985,
+      "files": 6,
+      "lines": 3080
+    },
+    "renderer": {
+      "bytes": 415808,
+      "files": 17,
+      "lines": 9663
+    },
+    "src": {
+      "bytes": 143992,
+      "files": 16,
+      "lines": 3765
+    }
+  },
+  "candidates": [
+    {
+      "path": "src/llama-host.js",
+      "bytes": 4062
+    },
+    {
+      "path": "src/llama-worker.js",
+      "bytes": 3046
+    },
+    {
+      "path": "src/note-models.js",
+      "bytes": 5710
+    },
+    {
+      "path": "renderer/note-model-download.html",
+      "bytes": 6815
+    },
+    {
+      "path": "src/shot.js",
+      "bytes": 1700
+    },
+    {
+      "path": "renderer/sounds/listen-stop.wav",
+      "bytes": 18566
+    }
+  ],
+  "flameshotFiles": [
+    {
+      "path": "resources/flameshot/bin/vc_redist.x64.exe",
+      "bytes": 25635768
+    },
+    {
+      "path": "resources/flameshot/bin/opengl32sw.dll",
+      "bytes": 20639888
+    },
+    {
+      "path": "resources/flameshot/bin/dxcompiler.dll",
+      "bytes": 14316920
+    },
+    {
+      "path": "resources/flameshot/bin/Qt6Core.dll",
+      "bytes": 10023136
+    },
+    {
+      "path": "resources/flameshot/bin/Qt6Gui.dll",
+      "bytes": 9497312
+    },
+    {
+      "path": "resources/flameshot/bin/Qt6Widgets.dll",
+      "bytes": 6540512
+    },
+    {
+      "path": "resources/flameshot/bin/Qt6Network.dll",
+      "bytes": 1735392
+    },
+    {
+      "path": "resources/flameshot/bin/flameshot.exe",
+      "bytes": 1710376
+    },
+    {
+      "path": "resources/flameshot/bin/dxil.dll",
+      "bytes": 1509760
+    },
+    {
+      "path": "resources/flameshot/bin/platforms/qwindows.dll",
+      "bytes": 925920
+    },
+    {
+      "path": "resources/flameshot/bin/Qt6Svg.dll",
+      "bytes": 607968
+    },
+    {
+      "path": "resources/flameshot/bin/imageformats/qjpeg.dll",
+      "bytes": 576736
+    },
+    {
+      "path": "resources/flameshot/bin/imageformats/qwebp.dll",
+      "bytes": 562912
+    },
+    {
+      "path": "resources/flameshot/bin/msvcp140.dll",
+      "bytes": 557728
+    },
+    {
+      "path": "resources/flameshot/bin/imageformats/qtiff.dll",
+      "bytes": 442592
+    },
+    {
+      "path": "resources/flameshot/bin/concrt140.dll",
+      "bytes": 324208
+    },
+    {
+      "path": "resources/flameshot/bin/msvcp140_2.dll",
+      "bytes": 280200
+    },
+    {
+      "path": "resources/flameshot/bin/tls/qschannelbackend.dll",
+      "bytes": 259296
+    },
+    {
+      "path": "resources/flameshot/bin/styles/qmodernwindowsstyle.dll",
+      "bytes": 218336
+    },
+    {
+      "path": "resources/flameshot/lib/kdsingleapplication-qt6.lib",
+      "bytes": 197738
+    },
+    {
+      "path": "resources/flameshot/bin/vcruntime140.dll",
+      "bytes": 124544
+    },
+    {
+      "path": "resources/flameshot/bin/generic/qtuiotouchplugin.dll",
+      "bytes": 103136
+    },
+    {
+      "path": "resources/flameshot/bin/tls/qcertonlybackend.dll",
+      "bytes": 103136
+    },
+    {
+      "path": "resources/flameshot/bin/iconengines/qsvgicon.dll",
+      "bytes": 79072
+    },
+    {
+      "path": "resources/flameshot/bin/networkinformation/qnetworklistmanager.dll",
+      "bytes": 71904
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_fr.qm",
+      "bytes": 65360
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_it_IT.qm",
+      "bytes": 64560
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_ga.qm",
+      "bytes": 63336
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_pt_BR.qm",
+      "bytes": 62702
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_ru.qm",
+      "bytes": 61579
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_id.qm",
+      "bytes": 60124
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_de_DE.qm",
+      "bytes": 59874
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_pt.qm",
+      "bytes": 58454
+    },
+    {
+      "path": "resources/flameshot/bin/imageformats/qicns.dll",
+      "bytes": 56544
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_uk.qm",
+      "bytes": 56468
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_ca.qm",
+      "bytes": 55548
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_bg.qm",
+      "bytes": 54289
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_eu.qm",
+      "bytes": 53999
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_nl_NL.qm",
+      "bytes": 53808
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_sk.qm",
+      "bytes": 52808
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_es.qm",
+      "bytes": 52254
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_hu.qm",
+      "bytes": 51715
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_vi.qm",
+      "bytes": 51668
+    },
+    {
+      "path": "resources/flameshot/bin/msvcp140_atomic_wait.dll",
+      "bytes": 50304
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_th.qm",
+      "bytes": 50169
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_el.qm",
+      "bytes": 49832
+    },
+    {
+      "path": "resources/flameshot/bin/vcruntime140_1.dll",
+      "bytes": 49792
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_pl.qm",
+      "bytes": 48542
+    },
+    {
+      "path": "resources/flameshot/bin/imageformats/qgif.dll",
+      "bytes": 48352
+    },
+    {
+      "path": "resources/flameshot/bin/imageformats/qico.dll",
+      "bytes": 46816
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_cs.qm",
+      "bytes": 45744
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_he.qm",
+      "bytes": 45284
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_fa.qm",
+      "bytes": 45173
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_fi.qm",
+      "bytes": 44983
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_et.qm",
+      "bytes": 44427
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_tr.qm",
+      "bytes": 44335
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_gl.qm",
+      "bytes": 43631
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_ka.qm",
+      "bytes": 43452
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_sr_SP.qm",
+      "bytes": 43299
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_sv_SE.qm",
+      "bytes": 43042
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_nb_NO.qm",
+      "bytes": 42996
+    },
+    {
+      "path": "resources/flameshot/bin/flameshot-cli.exe",
+      "bytes": 41776
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_ko.qm",
+      "bytes": 40087
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_ja.qm",
+      "bytes": 39885
+    },
+    {
+      "path": "resources/flameshot/bin/imageformats/qsvg.dll",
+      "bytes": 39648
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_zh_HK.qm",
+      "bytes": 39397
+    },
+    {
+      "path": "resources/flameshot/bin/imageformats/qtga.dll",
+      "bytes": 39136
+    },
+    {
+      "path": "resources/flameshot/bin/imageformats/qwbmp.dll",
+      "bytes": 37600
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_zh_CN.qm",
+      "bytes": 36365
+    },
+    {
+      "path": "resources/flameshot/bin/msvcp140_1.dll",
+      "bytes": 35952
+    },
+    {
+      "path": "resources/flameshot/LICENSE",
+      "bytes": 35823
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_da.qm",
+      "bytes": 35426
+    },
+    {
+      "path": "resources/flameshot/bin/msvcp140_codecvt_ids.dll",
+      "bytes": 31872
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_zh_TW.qm",
+      "bytes": 31637
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_grc.qm",
+      "bytes": 29097
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_nl.qm",
+      "bytes": 23649
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_sw.qm",
+      "bytes": 10085
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_ro.qm",
+      "bytes": 8017
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_ta.qm",
+      "bytes": 7785
+    },
+    {
+      "path": "resources/flameshot/lib/cmake/KDSingleApplication-qt6/KDSingleApplication-qt6Targets.cmake",
+      "bytes": 4469
+    },
+    {
+      "path": "resources/flameshot/include/kdsingleapplication-qt6/kdsingleapplication.h",
+      "bytes": 1891
+    },
+    {
+      "path": "resources/flameshot/lib/cmake/KDSingleApplication-qt6/KDSingleApplication-qt6Targets-release.cmake",
+      "bytes": 949
+    },
+    {
+      "path": "resources/flameshot/include/kdsingleapplication-qt6/kdsingleapplication_version.h",
+      "bytes": 719
+    },
+    {
+      "path": "resources/flameshot/include/kdsingleapplication-qt6/kdsingleapplication_lib.h",
+      "bytes": 648
+    },
+    {
+      "path": "resources/flameshot/bin/flameshot.ini",
+      "bytes": 342
+    },
+    {
+      "path": "resources/flameshot/bin/translations/Internationalization_en.qm",
+      "bytes": 30
+    }
+  ],
+  "installerBytes": 440477384,
+  "installerEntryGroups": {
+    "remaining": {
+      "bytes": 438249551,
+      "packedBytes": 119151235,
+      "files": 187
+    },
+    "llama": {
+      "bytes": 728962830,
+      "packedBytes": 295988061,
+      "files": 835
+    },
+    "vc_redist": {
+      "bytes": 25635768,
+      "packedBytes": 24761856,
+      "files": 1
+    }
+  },
+  "actionInventory": {
+    "actions": 84,
+    "literalRendererReferences": 45,
+    "candidatesWithoutLiteralRendererCall": [
+      "transform.set",
+      "commands.validateName",
+      "speech.transform",
+      "dictionary.save",
+      "dictionary.delete",
+      "history.update",
+      "history.delete",
+      "notes.sparkle.versions",
+      "notes.model.download",
+      "notes.save",
+      "notes.versions",
+      "notes.delete",
+      "meetings.save",
+      "meetings.delete",
+      "events.save",
+      "events.delete",
+      "todos.save",
+      "todos.delete",
+      "folders.save",
+      "folders.delete",
+      "corrections.add",
+      "corrections.delete",
+      "links.save",
+      "links.delete",
+      "links.open",
+      "automations.save",
+      "automations.delete",
+      "scratchpad.set",
+      "notifications.read",
+      "overlay.set",
+      "clipboard.paste",
+      "text.prepare",
+      "speech.speak",
+      "speech.translate",
+      "speech.rewrite",
+      "speech.instruct",
+      "speech.summarize",
+      "file.export",
+      "file.import"
+    ],
+    "references": {
+      "desk.snapshot": [
+        "renderer/app.js:227"
+      ],
+      "settings.save": [
+        "renderer/app.js:292",
+        "renderer/app.js:730",
+        "renderer/app.js:944",
+        "renderer/app.js:1109",
+        "renderer/app.js:1112",
+        "renderer/app.js:1164",
+        "renderer/app.js:1444",
+        "renderer/app.js:1453",
+        "renderer/app.js:1461",
+        "renderer/app.js:1470",
+        "renderer/app.js:1487",
+        "renderer/app.js:1494",
+        "renderer/app.js:1500",
+        "renderer/app.js:1506",
+        "renderer/app.js:1513",
+        "renderer/app.js:1548",
+        "renderer/app.js:1600",
+        "renderer/app.js:1679",
+        "renderer/app.js:1695",
+        "renderer/app.js:1700",
+        "renderer/app.js:2066",
+        "renderer/app.js:2070",
+        "renderer/app.js:2089",
+        "renderer/app.js:2096",
+        "renderer/note.html:445",
+        "renderer/overlay.html:978",
+        "renderer/sparkle-client.js:372",
+        "renderer/sparkle-client.js:661"
+      ],
+      "notes.model.openDownload": [
+        "renderer/app.js:671",
+        "renderer/note-model-download.html:185"
+      ],
+      "settings.verifyKey": [
+        "renderer/app.js:727"
+      ],
+      "pads.list": [
+        "renderer/app.js:977",
+        "renderer/note.html:307",
+        "renderer/note.html:460"
+      ],
+      "notes.spawn": [
+        "renderer/app.js:984",
+        "renderer/note.html:466"
+      ],
+      "voicenote.stop": [
+        "renderer/app.js:1053",
+        "renderer/note.html:293"
+      ],
+      "clipboard.copy": [
+        "renderer/app.js:1328",
+        "renderer/app.js:1412",
+        "renderer/app.js:1956",
+        "renderer/note-history.html:241",
+        "renderer/note.html:386"
+      ],
+      "commands.run": [
+        "renderer/app.js:1388",
+        "renderer/app.js:1896",
+        "renderer/overlay.html:352"
+      ],
+      "notes.model.cancel": [
+        "renderer/app.js:1524",
+        "renderer/note-model-download.html:201"
+      ],
+      "notes.model.delete": [
+        "renderer/app.js:1531"
+      ],
+      "notes.model.testKey": [
+        "renderer/app.js:1538"
+      ],
+      "pads.delete": [
+        "renderer/app.js:1712"
+      ],
+      "commands.delete": [
+        "renderer/app.js:1720"
+      ],
+      "commands.save": [
+        "renderer/app.js:1745",
+        "renderer/app.js:1751",
+        "renderer/app.js:1889",
+        "renderer/app.js:1922"
+      ],
+      "commands.create": [
+        "renderer/app.js:1878",
+        "renderer/app.js:1914"
+      ],
+      "voicenote.start": [
+        "renderer/app.js:1947",
+        "renderer/overlay.html:1062"
+      ],
+      "pads.save": [
+        "renderer/app.js:1977",
+        "renderer/app.js:2008",
+        "renderer/app.js:2037",
+        "renderer/note.html:350",
+        "renderer/note.html:371",
+        "renderer/note.html:405",
+        "renderer/sparkle-client.js:494",
+        "renderer/sparkle-client.js:503"
+      ],
+      "desk.pending": [
+        "renderer/app.js:2155"
+      ],
+      "notes.sparkle.history.close": [
+        "renderer/note-history.html:233",
+        "renderer/note-history.html:252",
+        "renderer/sparkle-client.js:617"
+      ],
+      "notes.sparkle.history.rows": [
+        "renderer/note-history.html:261"
+      ],
+      "notes.model.closeDownload": [
+        "renderer/note-model-download.html:189",
+        "renderer/note-model-download.html:198"
+      ],
+      "notes.model.minimizeDownload": [
+        "renderer/note-model-download.html:192"
+      ],
+      "notes.bind": [
+        "renderer/note.html:320",
+        "renderer/note.html:412",
+        "renderer/note.html:441"
+      ],
+      "note.close": [
+        "renderer/note.html:380",
+        "renderer/note.html:417"
+      ],
+      "notes.openHere": [
+        "renderer/note.html:469"
+      ],
+      "settings.get": [
+        "renderer/note.html:476",
+        "renderer/note.html:493",
+        "renderer/overlay.html:1082"
+      ],
+      "bar.mode": [
+        "renderer/overlay.html:247",
+        "renderer/overlay.html:291"
+      ],
+      "mic.repair": [
+        "renderer/overlay.html:521"
+      ],
+      "speech.session": [
+        "renderer/overlay.html:636",
+        "renderer/overlay.html:775"
+      ],
+      "speech.part": [
+        "renderer/overlay.html:643",
+        "renderer/overlay.html:778"
+      ],
+      "speech.finish": [
+        "renderer/overlay.html:791"
+      ],
+      "voicenote.done": [
+        "renderer/overlay.html:878",
+        "renderer/overlay.html:921"
+      ],
+      "notifications.add": [
+        "renderer/overlay.html:880"
+      ],
+      "dictate.toggle": [
+        "renderer/overlay.html:1001",
+        "renderer/overlay.html:1004"
+      ],
+      "shot.open": [
+        "renderer/overlay.html:1066"
+      ],
+      "note.open": [
+        "renderer/overlay.html:1070"
+      ],
+      "desk.open": [
+        "renderer/overlay.html:1074"
+      ],
+      "notes.sparkle.cached": [
+        "renderer/sparkle-client.js:441"
+      ],
+      "notes.sparkle.suggest": [
+        "renderer/sparkle-client.js:450"
+      ],
+      "notes.sparkle.improve": [
+        "renderer/sparkle-client.js:527"
+      ],
+      "notes.sparkle.apply": [
+        "renderer/sparkle-client.js:571"
+      ],
+      "notes.sparkle.undo": [
+        "renderer/sparkle-client.js:603"
+      ],
+      "notes.sparkle.cancel": [
+        "renderer/sparkle-client.js:623",
+        "renderer/sparkle-client.js:826"
+      ],
+      "notes.sparkle.history.open": [
+        "renderer/sparkle-client.js:681"
+      ]
+    }
+  },
+  "notes": [
+    "Logical installed file sizes; no disk-allocation or RAM measurement.",
+    "The installer includes five ARM64 DLLs (10415104 bytes) absent from this installed directory; installer and installation baselines are measured separately.",
+    "Missing literal renderer dispatch calls are candidates, not proof of dead behavior."
+  ]
+}

@@ -209,6 +209,7 @@
     let placedW = 0;
     let placedH = 0;
     let placedMenuOpen = false;
+    let soundsEnabled = true;
     const clips = {
       start: new Audio("sounds/listen-start.wav"),
       done: new Audio("sounds/done.wav"),
@@ -216,6 +217,7 @@
     };
 
     function play(name) {
+      if (!soundsEnabled) return;
       const clip = clips[name];
       if (!clip) return;
       clip.currentTime = 0;
@@ -921,6 +923,7 @@
     }
 
     function applyState(state) {
+      if (state && typeof state.sounds === "boolean") soundsEnabled = state.sounds;
       const next = state && state.mode;
       if (armed || mode === "listening" || mode === "working") {
         if (!next || next === "idle" || next === "hidden" || next === "result" || next === "error") return;
@@ -1004,6 +1007,7 @@
       window.openflow.on("bar-command", (message) => {
         if (!message) return;
         if (message.type === "config") {
+          soundsEnabled = message.sounds !== false;
           applyCleanupConfig(message);
           if (message.floatingBubble) floatingBubble = message.floatingBubble;
           if (Array.isArray(message.bubbleElements)) bubbleElements = message.bubbleElements;
@@ -1077,6 +1081,7 @@
     if (window.openflow) {
       window.openflow.dispatch("settings.get").then((s) => {
         if (!s) return;
+        soundsEnabled = s.sounds !== false;
         applyCleanupConfig(s);
         if (s.floatingBubble) floatingBubble = s.floatingBubble;
         if (Array.isArray(s.bubbleElements)) bubbleElements = s.bubbleElements;

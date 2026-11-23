@@ -37,11 +37,7 @@ const MAX_SUGGESTION_CHARS = 12;
 const MIN_SUGGEST_WORDS = 15;
 const SUGGEST_DEBOUNCE_MS = 4000;
 const SUGGEST_TIMEOUT_MS = 15000;
-const SUGGEST_TIMEOUT_LOCAL_MS = 30000;
 const REWRITE_TIMEOUT_MS = 60000;
-const REWRITE_TIMEOUT_LOCAL_MS = 120000;
-const LOCAL_CONTEXT_TOKENS = 8192;
-const LOCAL_MAX_INPUT_CHARS = 12000;
 
 const SUGGESTION_SCHEMA = {
   type: "object",
@@ -56,27 +52,6 @@ const SUGGESTION_SCHEMA = {
   },
   required: ["suggestions"],
 };
-
-const LOCAL_MODELS = [
-  {
-    id: "qwen2.5-3b-instruct-q4",
-    label: "Qwen2.5 3B Instruct (Q4_K_M)",
-    filename: "qwen2.5-3b-instruct-q4_k_m.gguf",
-    url: "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf",
-    sha256: "626b4a6678b86442240e33df819e00132d3ba7dddfe1cdc4fbb18e0a9615c62d",
-    approxBytes: 2100000000,
-    contextTokens: LOCAL_CONTEXT_TOKENS,
-  },
-  {
-    id: "llama-3.2-3b-instruct-q4",
-    label: "Llama 3.2 3B Instruct (Q4_K_M)",
-    filename: "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-    url: "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-    sha256: "",
-    approxBytes: 2000000000,
-    contextTokens: LOCAL_CONTEXT_TOKENS,
-  },
-];
 
 function countWords(text) {
   const trimmed = String(text || "").trim();
@@ -101,15 +76,6 @@ function contentHash(text) {
 function normalizeOpenAIModel(value) {
   const model = String(value || "").trim();
   return OPENAI_MODELS.includes(model) ? model : DEFAULT_OPENAI_MODEL;
-}
-
-function normalizeLocalModel(value) {
-  const id = String(value || "").trim();
-  return LOCAL_MODELS.some((model) => model.id === id) ? id : LOCAL_MODELS[0].id;
-}
-
-function localModel(id) {
-  return LOCAL_MODELS.find((model) => model.id === normalizeLocalModel(id)) || LOCAL_MODELS[0];
 }
 
 function buildRewriteUser(instruction, noteContent) {
@@ -300,27 +266,6 @@ function parseSuggestions(raw) {
   return { suggestions: fitted, usedFallback: false };
 }
 
-function planLocalPieces(content, maxChars) {
-  const limit = maxChars || LOCAL_MAX_INPUT_CHARS;
-  const source = String(content || "");
-  if (source.length <= limit) return { mode: "full", parts: [source] };
-  const blocks = source.split(/\n{2,}/);
-  const parts = [];
-  let bucket = "";
-  for (const block of blocks) {
-    if (block.length > limit) return { mode: "too_long", parts: [] };
-    const next = bucket ? `${bucket}\n\n${block}` : block;
-    if (next.length > limit) {
-      if (bucket) parts.push(bucket);
-      bucket = block;
-    } else {
-      bucket = next;
-    }
-  }
-  if (bucket) parts.push(bucket);
-  return { mode: "chunks", parts };
-}
-
 function wordDiff(before, after) {
   const max = 500;
   const left = String(before || "").split(/(\s+)/).slice(0, max);
@@ -393,19 +338,12 @@ module.exports = {
   MIN_SUGGEST_WORDS,
   SUGGEST_DEBOUNCE_MS,
   SUGGEST_TIMEOUT_MS,
-  SUGGEST_TIMEOUT_LOCAL_MS,
   REWRITE_TIMEOUT_MS,
-  REWRITE_TIMEOUT_LOCAL_MS,
-  LOCAL_CONTEXT_TOKENS,
-  LOCAL_MAX_INPUT_CHARS,
   SUGGESTION_SCHEMA,
-  LOCAL_MODELS,
   countWords,
   instructionState,
   contentHash,
   normalizeOpenAIModel,
-  normalizeLocalModel,
-  localModel,
   buildRewriteUser,
   buildSuggestUser,
   suggestionResponseFormat,
@@ -419,7 +357,6 @@ module.exports = {
   extractProtected,
   validateImproved,
   parseSuggestions,
-  planLocalPieces,
   wordDiff,
   linkAbort,
   isAbortError,

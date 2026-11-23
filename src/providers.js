@@ -8,22 +8,15 @@ const HOSTS = {
 const DEFAULTS = {
   groq: {
     sttModel: "whisper-large-v3-turbo",
-    ttsModel: "canopylabs/orpheus-v1-english",
-    ttsVoice: "troy",
     textModel: "llama-3.3-70b-versatile",
-    voices: ["troy", "hannah", "austin"],
   },
   openai: {
     sttModel: "gpt-transcribe",
-    ttsModel: "gpt-4o-mini-tts",
-    ttsVoice: "alloy",
     textModel: "gpt-4o-mini",
-    voices: ["alloy", "ash", "ballad", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer", "verse", "marin", "cedar"],
   },
 };
 
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
-const MAX_SPEECH_CHARS = 4000;
 
 function defaultsFor(provider) {
   if (!DEFAULTS[provider]) {
@@ -83,35 +76,6 @@ function transcriptionRequest({ provider, apiKey, audio, filename, mime, languag
   };
 }
 
-function speechRequest({ provider, apiKey, text, voice, model, responseFormat }) {
-  const preset = defaultsFor(provider);
-  const input = String(text || "").trim();
-  if (!input) throw new Error("No text to read aloud.");
-  if (input.length > MAX_SPEECH_CHARS) {
-    throw new Error(`Text exceeds ${MAX_SPEECH_CHARS} characters.`);
-  }
-  const url = provider === "openai"
-    ? "https://api.openai.com/v1/audio/speech"
-    : "https://api.groq.com/openai/v1/audio/speech";
-  assertAllowedUrl(url);
-  return {
-    url,
-    init: {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${requireKey(apiKey)}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: model || preset.ttsModel,
-        voice: voice || preset.ttsVoice,
-        input,
-        response_format: responseFormat || (provider === "groq" ? "wav" : "mp3"),
-      }),
-    },
-  };
-}
-
 function chatRequest({ provider, apiKey, model, system, user, temperature, responseFormat }) {
   const preset = defaultsFor(provider);
   const url = provider === "openai"
@@ -150,42 +114,6 @@ function translationRequest({ provider, apiKey, text, targetLanguage, model }) {
     model,
     system: "Translate the text into the requested language. Return only the translation, without quotes or explanations.",
     user: `Target language: ${target}\n\n${input}`,
-  });
-}
-
-function rewriteRequest({ provider, apiKey, text, style, model }) {
-  const input = String(text || "").trim();
-  if (!input) throw new Error("No text to rewrite.");
-  return chatRequest({
-    provider,
-    apiKey,
-    model,
-    system: "Rewrite the text in the requested style while preserving its meaning. Return only the rewritten text.",
-    user: `Style: ${style || "clear and concise"}\n\n${input}`,
-  });
-}
-
-function instructRequest({ provider, apiKey, prompt, context, model }) {
-  const input = String(prompt || "").trim();
-  if (!input) throw new Error("Missing instruction.");
-  return chatRequest({
-    provider,
-    apiKey,
-    model,
-    system: "You help formulate and refine text. Respond directly without preamble.",
-    user: context ? `Context:\n${context}\n\nInstruction:\n${input}` : input,
-  });
-}
-
-function summaryRequest({ provider, apiKey, transcript, model }) {
-  const input = String(transcript || "").trim();
-  if (!input) throw new Error("Missing transcript.");
-  return chatRequest({
-    provider,
-    apiKey,
-    model,
-    system: "Summarize the transcript in concise bullet points in English. Do not invent decisions.",
-    user: input,
   });
 }
 
@@ -294,34 +222,19 @@ async function postTranscription(fetchImpl, buildRequest, options) {
   throw last;
 }
 
-async function postAudio(fetchImpl, request) {
-  assertAllowedUrl(request.url);
-  const response = await fetchImpl(request.url, request.init);
-  if (!response.ok) throw new Error(await errorMessage(response));
-  const bytes = Buffer.from(await response.arrayBuffer());
-  const type = response.headers.get("content-type") || "audio/wav";
-  return { bytes, type };
-}
-
 module.exports = {
   DEFAULTS,
   HOSTS,
   MAX_AUDIO_BYTES,
-  MAX_SPEECH_CHARS,
   defaultsFor,
   assertAllowedUrl,
   transcriptionRequest,
-  speechRequest,
   chatRequest,
   translationRequest,
-  rewriteRequest,
-  instructRequest,
-  summaryRequest,
   parseTranscription,
   detectedLanguage,
   parseChatText,
   readChatUsage,
   postJson,
   postTranscription,
-  postAudio,
 };

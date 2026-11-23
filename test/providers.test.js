@@ -21,19 +21,6 @@ test("transcription request stays on the selected host and keeps the key out of 
   assert.equal(JSON.stringify(form).includes("test-key"), false);
 });
 
-test("openai speech request uses the speech endpoint and a documented voice", async () => {
-  const request = providers.speechRequest({
-    provider: "openai",
-    apiKey: "sk-test",
-    text: "Guten Tag",
-  });
-  assert.equal(request.url, "https://api.openai.com/v1/audio/speech");
-  const payload = JSON.parse(request.init.body);
-  assert.equal(payload.model, "gpt-4o-mini-tts");
-  assert.equal(payload.voice, "alloy");
-  assert.equal(payload.input, "Guten Tag");
-});
-
 test("translation request asks only for the translation", () => {
   const request = providers.translationRequest({
     provider: "groq",
@@ -54,10 +41,10 @@ test("empty audio, missing key, and foreign hosts fail closed", () => {
     apiKey: "k",
     audio: Buffer.alloc(0),
   }), /empty/);
-  assert.throws(() => providers.speechRequest({
+  assert.throws(() => providers.transcriptionRequest({
     provider: "openai",
     apiKey: "  ",
-    text: "Hello",
+    audio: Buffer.from("audio"),
   }), /API key/);
   assert.throws(() => providers.assertAllowedUrl("http://api.openai.com/v1/audio/speech"), /HTTPS/);
   assert.throws(() => providers.assertAllowedUrl("https://example.com/v1/audio/speech"), /API host/);

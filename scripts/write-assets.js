@@ -171,10 +171,6 @@ const cues = {
     { at: 0.02, dur: 0.12, freq: 660, amp: 0.22 },
     { at: 0.14, dur: 0.16, freq: 880, amp: 0.18 },
   ],
-  "listen-stop.wav": [
-    { at: 0.02, dur: 0.12, freq: 880, amp: 0.18 },
-    { at: 0.14, dur: 0.16, freq: 620, amp: 0.16 },
-  ],
   "done.wav": [
     { at: 0.02, dur: 0.1, freq: 523, amp: 0.16 },
     { at: 0.12, dur: 0.18, freq: 784, amp: 0.18 },

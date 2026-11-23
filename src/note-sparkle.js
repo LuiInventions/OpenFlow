@@ -86,22 +86,13 @@ function createNoteSparkle(deps) {
     return { text: result == null ? "" : String(result), usage: null };
   }
 
-  function mergeUsage(parts) {
-    if (!parts.length || parts.some((part) => !part.usage)) return null;
-    return {
-      promptTokens: parts.reduce((sum, part) => sum + part.usage.promptTokens, 0),
-      completionTokens: parts.reduce((sum, part) => sum + part.usage.completionTokens, 0),
-      cachedTokens: parts.reduce((sum, part) => sum + part.usage.cachedTokens, 0),
-    };
-  }
-
   async function complete(args, config = completion.selection()) {
     if (deps.complete) return asCompletion(await deps.complete(args));
     return asCompletion(await completion.complete(args, config));
   }
 
-  async function rewriteOne(content, instruction, signal, timeoutMs, config) {
-    const linked = improve.linkAbort(signal, timeoutMs);
+  async function rewrite(content, instruction, signal, config) {
+    const linked = improve.linkAbort(signal, improve.REWRITE_TIMEOUT_MS);
     try {
       return await complete({
         kind: "rewrite",
@@ -113,27 +104,6 @@ function createNoteSparkle(deps) {
     } finally {
       linked.clear();
     }
-  }
-
-  async function rewrite(content, instruction, signal, config) {
-    const local = config.provider === "local";
-    const timeoutMs = local ? improve.REWRITE_TIMEOUT_LOCAL_MS : improve.REWRITE_TIMEOUT_MS;
-    if (!local) return rewriteOne(content, instruction, signal, timeoutMs, config);
-    const plan = improve.planLocalPieces(content, improve.LOCAL_MAX_INPUT_CHARS);
-    if (plan.mode === "too_long") {
-      const error = new Error("This note is too long for the local model.");
-      error.code = "too_long";
-      throw error;
-    }
-    if (plan.mode === "full") return rewriteOne(content, instruction, signal, timeoutMs, config);
-    const parts = [];
-    for (const part of plan.parts) {
-      parts.push(await rewriteOne(part, instruction, signal, timeoutMs, config));
-    }
-    return {
-      text: parts.map((part) => improve.cleanModelOutput(part.text)).filter(Boolean).join("\n\n"),
-      usage: mergeUsage(parts),
-    };
   }
 
   function commit(pad, before, output, instruction, measured, config) {
@@ -279,17 +249,13 @@ function createNoteSparkle(deps) {
     if (!configured() || privacyBlocks()) return idle;
     const job = beginJob(padId || `suggest-${Date.now()}`);
     if (!job) return { ...cached({ id: padId, content }), pending: true };
-    const local = providerName() === "local";
     const config = completion.selection();
-    const timeoutMs = local ? improve.SUGGEST_TIMEOUT_LOCAL_MS : improve.SUGGEST_TIMEOUT_MS;
-    const linked = improve.linkAbort(job.ctrl.signal, timeoutMs);
+    const linked = improve.linkAbort(job.ctrl.signal, improve.SUGGEST_TIMEOUT_MS);
     try {
-      let source = content;
-      if (local && source.length > improve.LOCAL_MAX_INPUT_CHARS) source = source.slice(0, improve.LOCAL_MAX_INPUT_CHARS);
       const raw = await complete({
         kind: "suggest",
         system: improve.SUGGEST_SYSTEM,
-        user: improve.buildSuggestUser(source),
+        user: improve.buildSuggestUser(content),
         temperature: improve.SUGGEST_TEMPERATURE,
         responseFormat: improve.suggestionResponseFormat(),
         jsonSchema: improve.SUGGESTION_SCHEMA,

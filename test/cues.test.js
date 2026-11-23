@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 test("listening cues are original short wav files", () => {
-  for (const name of ["listen-start.wav", "listen-stop.wav", "done.wav", "error.wav"]) {
+  for (const name of ["listen-start.wav", "done.wav", "error.wav"]) {
     const bytes = fs.readFileSync(path.join(__dirname, "..", "renderer", "sounds", name));
     assert.equal(bytes.subarray(0, 4).toString("ascii"), "RIFF");
     assert.ok(bytes.length > 44 && bytes.length < 40000, name);

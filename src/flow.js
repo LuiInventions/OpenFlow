@@ -2,6 +2,9 @@
 
 const improve = require("./note-improve");
 
+// Historical local runs remain free in Usage after removing their runtime.
+const LEGACY_LOCAL_TEXT_MODELS = ["qwen2.5-3b-instruct-q4", "llama-3.2-3b-instruct-q4"];
+
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -226,8 +229,8 @@ function measureNoteChange({ before, after, instruction, model, usage }) {
     cachedTokens,
     tokens: promptTokens + completionTokens,
     tokensEstimated: estimated,
-    costUsd: improve.LOCAL_MODELS.some(item => item.id === model) ? 0 : noteImproveCost(model, promptTokens, completionTokens, cachedTokens),
-    model: improve.LOCAL_MODELS.some(item => item.id === model) || NOTE_IMPROVE_PRICES[model] ? model : "gpt-6-luna",
+    costUsd: LEGACY_LOCAL_TEXT_MODELS.includes(model) ? 0 : noteImproveCost(model, promptTokens, completionTokens, cachedTokens),
+    model: LEGACY_LOCAL_TEXT_MODELS.includes(model) || NOTE_IMPROVE_PRICES[model] ? model : "gpt-6-luna",
   };
 }
 
@@ -323,7 +326,7 @@ function noteImproveUsageReport(versions, now = new Date()) {
 
 function noteAndDictationUsageReport(versions, dictations, now = new Date()) {
   const apiVersions = (versions || []).filter(row => row && (row.kind !== "improve"
-    || (row.provider !== "local" && !improve.LOCAL_MODELS.some(model => model.id === row.model))));
+    || (row.provider !== "local" && !LEGACY_LOCAL_TEXT_MODELS.includes(row.model))));
   const report = noteImproveUsageReport(apiVersions, now);
   const index = new Map(report.days.map((day, slot) => [day.date, slot]));
   const seenRuns = new Set();
