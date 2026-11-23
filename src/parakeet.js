@@ -3,35 +3,52 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
+const { downloadFile } = require("./model-download");
 
 const MODEL_ID = "parakeet-tdt-0.6b-v3";
-const HF_BASE = "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main";
+const MODEL_REVISION = "ed5d745623472f97cfc2e6c2916ee248798fc5a8";
+const HF_BASE = `https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/${MODEL_REVISION}`;
 const REQUIRED_FILES = [
-  { name: "tokens.txt", minBytes: 1000, expectedBytes: 93939 },
-  { name: "joiner.int8.onnx", minBytes: 1000000, expectedBytes: 6355277 },
-  { name: "decoder.int8.onnx", minBytes: 1000000, expectedBytes: 11845275 },
-  { name: "encoder.int8.onnx", minBytes: 100000000, expectedBytes: 652184281 },
+  {
+    "name": "tokens.txt",
+    "expectedBytes": 93939,
+    "sha256": "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d"
+  },
+  {
+    "name": "joiner.int8.onnx",
+    "expectedBytes": 6355277,
+    "sha256": "cbd02f3696e9944970111fb439d9c3fd365a80374565f13f2b9c7007d253fc98"
+  },
+  {
+    "name": "decoder.int8.onnx",
+    "expectedBytes": 11845274,
+    "sha256": "0222a86147299d4dee90edf95b6d13827edb42ad8b7c9cf0b2582f030937c0b5"
+  },
+  {
+    "name": "encoder.int8.onnx",
+    "expectedBytes": 652282294,
+    "sha256": "1afbe69c1ffdabee94755f42e4daf1d93549131a3da11356bda84fcef0f2c479"
+  }
 ];
+const LEGACY_FILE_BYTES = [93939, 6355277, 11845275, 652184281];
 const TOTAL_EXPECTED_BYTES = REQUIRED_FILES.reduce((sum, file) => sum + file.expectedBytes, 0);
 
 let recognizer = null;
 let loadPromise = null;
 let installPromise = null;
+let downloadProgress = null;
+let downloadController = null;
+const progressListeners = new Set();
 let engineState = "stopped";
 let lastError = "";
 let activeModelDir = "";
 
 function dirHasModel(dir) {
   if (!dir || !fs.existsSync(dir)) return false;
-  return REQUIRED_FILES.every((file) => {
-    const full = path.join(dir, file.name);
-    if (!fs.existsSync(full)) return false;
-    try {
-      return fs.statSync(full).size >= file.minBytes;
-    } catch {
-      return false;
-    }
-  });
+  return [REQUIRED_FILES.map(file => file.expectedBytes), LEGACY_FILE_BYTES].some(expected =>
+    REQUIRED_FILES.every((file, index) => {
+      try { return fs.statSync(path.join(dir, file.name)).size === expected[index]; } catch { return false; }
+    }));
 }
 
 function candidateModelDirs(userDataPath) {
@@ -62,7 +79,7 @@ function mirrorModelHardlinks(sourceDir, targetDir) {
       const dst = path.join(targetDir, file.name);
       if (fs.existsSync(dst)) {
         try {
-          if (fs.statSync(dst).size >= file.minBytes) continue;
+          if (fs.statSync(dst).size === fs.statSync(src).size) continue;
           fs.unlinkSync(dst);
         } catch {}
       }
@@ -79,12 +96,6 @@ function resolveModelDir(userDataPath) {
   const candidates = candidateModelDirs(userDataPath);
   for (const dir of candidates) {
     if (dirHasModel(dir)) {
-      if (process.env.LOCALAPPDATA) {
-        mirrorModelHardlinks(dir, path.join(process.env.LOCALAPPDATA, "OpenFlow", "models", MODEL_ID));
-      }
-      if (userDataPath) {
-        mirrorModelHardlinks(dir, path.join(userDataPath, "models", MODEL_ID));
-      }
       return dir;
     }
   }
@@ -101,131 +112,72 @@ function isModelInstalled(userDataPath) {
   return candidateModelDirs(userDataPath).some((dir) => dirHasModel(dir));
 }
 
-async function downloadFile(url, destPath, onChunkBytes) {
-  const res = await fetch(url, { redirect: "follow" });
-  if (!res.ok || !res.body) {
-    throw new Error(`Failed to download ${path.basename(destPath)} (${res.status})`);
-  }
-  const contentLength = Number(res.headers.get("content-length")) || 0;
-  const tmpPath = `${destPath}.${process.pid}.part`;
-  const fileStream = fs.createWriteStream(tmpPath);
-  const reader = res.body.getReader();
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value && value.byteLength) {
-        if (typeof onChunkBytes === "function") {
-          onChunkBytes(value.byteLength, contentLength);
-        }
-        if (!fileStream.write(Buffer.from(value))) {
-          await new Promise((resolve) => fileStream.once("drain", resolve));
-        }
+function ensureModelFiles(userDataPath, onProgress, options = {}) {
+  if (typeof onProgress === "function") progressListeners.add(onProgress);
+  if (downloadProgress && onProgress) onProgress(downloadProgress);
+  if (!installPromise) {
+    const dir = resolveModelDir(userDataPath);
+    downloadController = new AbortController();
+    const publish = value => {
+      downloadProgress = value;
+      for (const listener of progressListeners) { try { listener(value); } catch {} }
+    };
+    installPromise = (async () => {
+      engineState = "installing";
+      lastError = "";
+      if (dirHasModel(dir)) {
+        engineState = "stopped";
+        publish({ downloadedBytes: TOTAL_EXPECTED_BYTES, totalBytes: TOTAL_EXPECTED_BYTES,
+          downloadedMb: +(TOTAL_EXPECTED_BYTES / 1048576).toFixed(1), totalMb: +(TOTAL_EXPECTED_BYTES / 1048576).toFixed(1),
+          percent: 100, phase: "complete", done: true });
+        return dir;
       }
-    }
-    await new Promise((resolve, reject) => {
-      fileStream.end((err) => (err ? reject(err) : resolve()));
-    });
-    fs.renameSync(tmpPath, destPath);
-  } catch (error) {
-    try { fileStream.destroy(); } catch {}
-    try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch {}
-    throw error;
+      fs.mkdirSync(dir, { recursive: true });
+      const storedBytes = new Map(REQUIRED_FILES.map(file => {
+        const full = path.join(dir, file.name);
+        let stored = 0;
+        try { if (fs.statSync(full).size === file.expectedBytes) stored = file.expectedBytes; } catch {}
+        if (!stored) { try { stored = Math.min(file.expectedBytes, fs.statSync(full + ".part").size); } catch {} }
+        return [file.name, stored];
+      }));
+      const report = (extra = 0, currentFile = "", phase = "downloading") => {
+        if (currentFile) storedBytes.set(currentFile, extra);
+        const current = Math.min(TOTAL_EXPECTED_BYTES, [...storedBytes.values()].reduce((sum, bytes) => sum + bytes, 0));
+        publish({ downloadedBytes: current, totalBytes: TOTAL_EXPECTED_BYTES,
+          downloadedMb: +(current / 1048576).toFixed(1), totalMb: +(TOTAL_EXPECTED_BYTES / 1048576).toFixed(1),
+          percent: Math.floor(current / TOTAL_EXPECTED_BYTES * 100), currentFile, phase, done: false });
+      };
+      report();
+      for (const file of REQUIRED_FILES) {
+        const destination = path.join(dir, file.name);
+        if (fs.existsSync(destination) && fs.statSync(destination).size === file.expectedBytes) {
+          report(file.expectedBytes, file.name);
+          continue;
+        }
+        await downloadFile({ ...options, url: `${HF_BASE}/${file.name}`, destination, expectedBytes: file.expectedBytes, expectedSha256: file.sha256,
+          signal: downloadController.signal,
+          onProgress: value => report(value.receivedBytes, file.name, value.phase) });
+        report(file.expectedBytes, file.name);
+      }
+      if (!dirHasModel(dir)) throw new Error("The downloaded model is incomplete. Please retry in Settings.");
+      if (process.env.LOCALAPPDATA) mirrorModelHardlinks(dir, path.join(process.env.LOCALAPPDATA, "OpenFlow", "models", MODEL_ID));
+      if (userDataPath) mirrorModelHardlinks(dir, path.join(userDataPath, "models", MODEL_ID));
+      engineState = "stopped";
+      publish({ downloadedBytes: TOTAL_EXPECTED_BYTES, totalBytes: TOTAL_EXPECTED_BYTES,
+        downloadedMb: +(TOTAL_EXPECTED_BYTES / 1048576).toFixed(1), totalMb: +(TOTAL_EXPECTED_BYTES / 1048576).toFixed(1),
+        percent: 100, phase: "complete", done: true });
+      return dir;
+    })().catch(error => {
+      lastError = error.message || "Model download failed. Please retry in Settings.";
+      engineState = "error";
+      publish({ ...(downloadProgress || {}), done: false, phase: "error", error: lastError });
+      throw error;
+    }).finally(() => { installPromise = null; downloadController = null; progressListeners.clear(); });
   }
+  return installPromise;
 }
 
-async function ensureModelFiles(userDataPath, onProgress) {
-  const dir = resolveModelDir(userDataPath);
-  if (dirHasModel(dir)) {
-    if (typeof onProgress === "function") {
-      const totalMb = Number((TOTAL_EXPECTED_BYTES / (1024 * 1024)).toFixed(1));
-      onProgress({
-        downloadedBytes: TOTAL_EXPECTED_BYTES,
-        totalBytes: TOTAL_EXPECTED_BYTES,
-        downloadedMb: totalMb,
-        totalMb,
-        percent: 100,
-        done: true,
-      });
-    }
-    return dir;
-  }
-
-  engineState = "installing";
-  fs.mkdirSync(dir, { recursive: true });
-
-  let completedBytes = 0;
-  const totalBytes = TOTAL_EXPECTED_BYTES;
-  const report = (extraBytes = 0, currentFile = "") => {
-    if (typeof onProgress !== "function") return;
-    const current = Math.min(totalBytes, completedBytes + extraBytes);
-    const downloadedMb = Number((current / (1024 * 1024)).toFixed(1));
-    const totalMb = Number((totalBytes / (1024 * 1024)).toFixed(1));
-    const percent = Math.max(0, Math.min(100, Math.round((current / totalBytes) * 100)));
-    onProgress({
-      downloadedBytes: current,
-      totalBytes,
-      downloadedMb,
-      totalMb,
-      percent,
-      currentFile,
-      done: false,
-    });
-  };
-
-  report(0, "");
-
-  for (const file of REQUIRED_FILES) {
-    const full = path.join(dir, file.name);
-    let existingSize = 0;
-    let valid = false;
-    try {
-      if (fs.existsSync(full)) {
-        existingSize = fs.statSync(full).size;
-        valid = existingSize >= file.minBytes;
-      }
-    } catch {
-      valid = false;
-    }
-    if (valid) {
-      completedBytes += file.expectedBytes;
-      report(0, file.name);
-      continue;
-    }
-    let fileDownloaded = 0;
-    let lastEmit = 0;
-    await downloadFile(`${HF_BASE}/${file.name}`, full, (chunkLen) => {
-      fileDownloaded += chunkLen;
-      const now = Date.now();
-      if (now - lastEmit >= 60) {
-        lastEmit = now;
-        report(fileDownloaded, file.name);
-      }
-    });
-    completedBytes += file.expectedBytes;
-    report(0, file.name);
-  }
-
-  if (process.env.LOCALAPPDATA) {
-    mirrorModelHardlinks(dir, path.join(process.env.LOCALAPPDATA, "OpenFlow", "models", MODEL_ID));
-  }
-  if (userDataPath) {
-    mirrorModelHardlinks(dir, path.join(userDataPath, "models", MODEL_ID));
-  }
-
-  if (typeof onProgress === "function") {
-    const totalMb = Number((totalBytes / (1024 * 1024)).toFixed(1));
-    onProgress({
-      downloadedBytes: totalBytes,
-      totalBytes,
-      downloadedMb: totalMb,
-      totalMb,
-      percent: 100,
-      done: true,
-    });
-  }
-  return dir;
-}
+function cancelDownload() { downloadController?.abort(new Error("Download paused. It can be resumed in Settings.")); }
 
 function decodeWavPcm16(buffer) {
   const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
@@ -284,7 +236,8 @@ function startBackground(userDataPath) {
   loadPromise = (async () => {
     try {
       lastError = "";
-      const modelDir = await ensureModelFiles(userDataPath);
+      if (!isModelInstalled(userDataPath)) throw new Error("Download Parakeet v3 in Settings or use an API key.");
+      const modelDir = resolveModelDir(userDataPath);
       activeModelDir = modelDir;
       engineState = "loading";
       const sherpa = require("sherpa-onnx-node");
@@ -345,19 +298,25 @@ function getStatus(userDataPath) {
   const dir = activeModelDir || resolveModelDir(userDataPath);
   return {
     model: MODEL_ID,
+    totalBytes: TOTAL_EXPECTED_BYTES,
     installed: dirHasModel(dir),
     state: engineState,
     error: lastError,
+    progress: downloadProgress,
+    downloading: Boolean(installPromise),
   };
 }
 
 module.exports = {
   MODEL_ID,
+  MODEL_REVISION,
+  MODEL_FILES: REQUIRED_FILES,
   TOTAL_EXPECTED_BYTES,
   resolveModelDir,
   dirHasModel,
   isModelInstalled,
   ensureModelFiles,
+  cancelDownload,
   decodeWavPcm16,
   startBackground,
   stopBackground,

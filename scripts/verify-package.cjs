@@ -17,7 +17,7 @@ function files(dir) {
 const entries = asar.listPackage(archive).map(name => name.replaceAll("\\", "/").replace(/^\//, ""));
 for (const entry of entries) {
   assert.ok(!/node_modules\/(?:node-llama-cpp|@node-llama-cpp|@reflink)\//.test(entry), `Unused native dependency: ${entry}`);
-  assert.ok(!/(?:^|\/)(?:llama-host\.js|llama-worker\.js|note-models\.js|note-model-download\.html|shot\.js|listen-stop\.wav)$/.test(entry), `Unused file: ${entry}`);
+  assert.ok(!/(?:^|\/)(?:llama-host\.js|llama-worker\.js|note-models\.js|note-model-download\.html|model-install\.html|shot\.js|listen-stop\.wav)$/.test(entry), `Unused file: ${entry}`);
 }
 const packaged = JSON.parse(asar.extractFile(archive, "package.json"));
 assert.equal(packaged.version, require(path.join(project, "package.json")).version);

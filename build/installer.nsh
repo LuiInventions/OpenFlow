@@ -1,12 +1,20 @@
 !macro customCheckAppRunning
-  nsExec::Exec `"$SYSDIR\taskkill.exe" /F /IM "${APP_EXECUTABLE_FILENAME}" /T`
+  !ifndef BUILD_UNINSTALLER
+    !ifdef APP_PACKAGE_URL
+      !ifndef OPENFLOW_DOWNLOAD_OVERRIDE
+        !define OPENFLOW_DOWNLOAD_OVERRIDE
+        !macroundef downloadApplicationFiles
+        !include "${BUILD_RESOURCES_DIR}\nsis\webPackage.nsh"
+      !endif
+    !endif
+  !endif
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  File /oname=OpenFlow-stop.ps1 "${BUILD_RESOURCES_DIR}\stop-openflow.ps1"
+  nsExec::Exec `"$PowerShellPath" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\OpenFlow-stop.ps1" -InstallDirectory "$INSTDIR"`
   Pop $R0
-  nsExec::Exec `"$SYSDIR\taskkill.exe" /F /IM "flameshot.exe" /T`
-  Pop $R0
-  nsExec::Exec `"$PowerShellPath" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { ($$_.Name -ieq 'OpenFlow.exe') -or ($$_.Name -ieq 'flameshot.exe') -or ($$_.CommandLine -match 'chord\.ps1|unmute\.ps1|paste\.ps1|micrepair') } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }"`
-  Pop $R0
-  RMDir /r "$LOCALAPPDATA\openflow-updater"
-  Sleep 800
+  SetOutPath "$INSTDIR"
+  Sleep 300
 !macroend
 
 !macro customFinishPage

@@ -170,6 +170,10 @@ function beginDictate(hwnd, source) {
     }
     return;
   }
+  if (store && store.getSettings().sttEngine !== "openai" && !parakeet.isModelInstalled(app.getPath("userData"))) {
+    showMain({ parakeetDownload: true });
+    return false;
+  }
   rememberTarget(hwnd);
   dictating = true;
   dictateSource = next;
@@ -238,7 +242,7 @@ function syncSttEngine() {
   const settings = store.getSettings();
   if (settings.sttEngine === "openai") {
     parakeet.stopBackground();
-  } else {
+  } else if (parakeet.isModelInstalled(app.getPath("userData"))) {
     parakeet.startBackground(app.getPath("userData")).catch(() => {});
   }
 }
@@ -602,54 +606,24 @@ async function openNoteHistory(payload, event) {
   return { open: true };
 }
 
-async function runModelInstallerIfNeeded() {
+function beginModelDownload() {
   const userData = app.getPath("userData");
-  if (process.env.OPENFLOW_SMOKE === "1" || parakeet.isModelInstalled(userData)) {
-    return;
+  let lastSent = 0;
+  let lastPhase = "";
+  const deliver = progress => {
+    const now = Date.now();
+    if (!progress.done && !progress.error && progress.phase === lastPhase && now - lastSent < 120) return;
+    lastSent = now;
+    lastPhase = progress.phase;
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("model-install-progress", parakeet.getStatus(userData));
+  };
+  if (!parakeet.getStatus(userData).downloading) {
+    parakeet.ensureModelFiles(userData, deliver, { fetchImpl: apiFetch }).then(() => {
+      syncSttEngine();
+      refreshDesk();
+    }).catch(() => { refreshDesk(); });
   }
-  const win = new BrowserWindow({
-    width: 480,
-    height: 230,
-    resizable: false,
-    minimizable: false,
-    maximizable: false,
-    closable: false,
-    center: true,
-    show: false,
-    title: "Installing open-source STT model",
-    icon: path.join(root, "build", "icon.png"),
-    backgroundColor: "#faf9f7",
-    autoHideMenuBar: true,
-    webPreferences: {
-      preload: path.join(__dirname, "preload.cjs"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  });
-  await win.loadFile(path.join(root, "renderer", "model-install.html"));
-  if (!win.isDestroyed()) {
-    win.show();
-    win.focus();
-  }
-  try {
-    await parakeet.ensureModelFiles(userData, (progress) => {
-      if (!win.isDestroyed()) {
-        win.webContents.send("model-install-progress", progress);
-      }
-    });
-  } catch (error) {
-    if (!win.isDestroyed()) {
-      win.webContents.send("model-install-progress", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      await delay(1800);
-    }
-  } finally {
-    if (!win.isDestroyed()) {
-      win.destroy();
-    }
-  }
+  return { started: true, parakeet: parakeet.getStatus(userData) };
 }
 
 function pipeName() {
@@ -1423,6 +1397,7 @@ function reportCommandFailure(result) {
 const actions = {
   "mic.repair": () => ensureMicrophone(),
   "settings.get": () => publicSettings(),
+  "parakeet.download": () => beginModelDownload(),
   "settings.verifyKey": async () => {
     await ensureApiKeyStatus().validate(true);
     return { settings: publicSettings() };
@@ -1811,7 +1786,6 @@ if (!gotLock) {
     }
     store = createStore(path.join(app.getPath("userData"), "openflow.json"));
     ensureCommandsScripts();
-    await runModelInstallerIfNeeded();
     syncSttEngine();
     applyFloatingBubbleState();
     createWindows();
@@ -1825,6 +1799,7 @@ if (!gotLock) {
 
 app.on("before-quit", () => {
   quitting = true;
+  parakeet.cancelDownload();
   if (pointerTimer) clearInterval(pointerTimer);
   stopChord();
 });

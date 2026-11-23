@@ -236,7 +236,7 @@ async function load(pending) {
     state.draftVoiceNote = settings.voiceNoteButton !== false;
   }
   if ((pending && pending.onboarding) || !settings.onboardingDone) {
-    if (!state.onboardingStep) state.onboardingStep = "choose";
+    if (!state.onboardingStep) state.onboardingStep = "download-choice";
   } else if (!settings.aiFeaturesOnboardingDone) {
     state.onboardingStep = "ai-features";
   } else {
@@ -266,7 +266,10 @@ async function load(pending) {
       state.editor = null;
     }
   }
+  const apiKeyDraft = document.querySelector("#api-key")?.value || "";
+  if (pending?.parakeetDownload) state.view = "settings";
   render();
+  if (apiKeyDraft && document.querySelector("#api-key")) document.querySelector("#api-key").value = apiKeyDraft;
   if (state.askKey && state.view === "settings" && !state.onboardingStep) {
     const key = document.querySelector("#api-key");
     if (key) key.focus();
@@ -542,6 +545,66 @@ function usageHtml() {
   return sttUsageHtml(state.desk.usage, "Usage over the last 30 days");
 }
 
+function sttInfoIcon(active) {
+  if (active) {
+    return `<svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="3" x2="13" y2="13"></line><line x1="13" y1="3" x2="3" y2="13"></line></svg>`;
+  }
+  return `<svg width="9" height="9" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="3.5" r="1.5"/><rect x="6.5" y="7" width="3" height="6" rx="1"/></svg>`;
+}
+
+function parakeetDownloadButton(model) {
+  const busy = Boolean(model.downloading);
+  const ready = Boolean(model.installed);
+  const icon = ready ? '<path d="m3 6 2 2 4-4"/>' : '<path d="M6 2v6m-3-3 3 3 3-3M2 9v2h8V9"/>';
+  const label = ready ? "Parakeet model installed" : busy ? "Downloading Parakeet model" : "Download Parakeet v3 model";
+  return `<button type="button" class="engine-download-btn${busy ? " is-downloading" : ""}" data-parakeet-download title="${label}" aria-label="${label}"${busy || ready ? " disabled" : ""}><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg></button>`;
+}
+
+function modelProgressHtml(model) {
+  const progress = model.progress || {};
+  const visible = model.downloading || (progress.error && !model.installed);
+  const percent = Math.max(0, Math.min(100, Number(progress.percent) || 0));
+  const text = progress.error ? "Download paused. Click the blue button to retry."
+    : `${Number(progress.downloadedMb || 0).toFixed(1)} / ${Number(progress.totalMb || 639.5).toFixed(1)} MB${progress.phase === "retrying" ? " · Reconnecting…" : progress.phase === "verifying" ? " · Verifying…" : ""}`;
+  return `<div class="model-progress" data-model-progress${visible ? "" : " hidden"}><div class="model-progress-track" role="progressbar" aria-label="Parakeet model download" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}"><span data-model-progress-fill style="width:${percent}%"></span></div><span class="model-progress-text" data-model-progress-text role="status">${esc(text)}</span></div>`;
+}
+
+function parakeetCardHtml(sttEngine) {
+  const model = state.desk?.settings?.parakeet || {};
+  const isChecked = sttEngine === "parakeet";
+  const isPinned = Boolean(state.sttInfoParakeet);
+  const controls = active => `<div class="engine-actions">${parakeetDownloadButton(model)}<button type="button" class="engine-info-btn${active ? " active" : ""}" data-stt-info="parakeet" title="${active ? "Close details" : "Model details"}" aria-label="${active ? "Close details" : "Model details"}">${sttInfoIcon(active)}</button></div>`;
+  return `<div role="radio" tabindex="0" class="engine-option${isPinned ? " is-pinned" : ""}" data-stt-select="parakeet" aria-checked="${isChecked ? "true" : "false"}"><div class="engine-normal-view"><div class="engine-head"><strong>Parakeet v3 <span class="engine-subtitle">(Open-Source)</span></strong>${controls(false)}</div><p>${model.installed ? "Free, private dictation on your PC." : "Free offline dictation. Download the model to get started."}</p></div><div class="engine-info-view"><div class="engine-info-head"><div class="engine-info-meta"><strong class="engine-info-title">Parakeet v3</strong><span class="engine-info-tagline">On your CPU · 0.6B model · 640 MB</span></div>${controls(true)}</div><p>Once downloaded, speech is transcribed on this PC without an API key.</p></div>${modelProgressHtml(model)}</div>`;
+}
+
+function sttCardsHtml(sttEngine) {
+  const model = state.desk?.settings?.parakeet || {};
+  return `<div class="engine-grid${model.downloading || (model.progress?.error && !model.installed) ? " has-model-progress" : ""}" role="radiogroup" aria-label="Speech-to-Text Engine">${parakeetCardHtml(sttEngine)}${openaiCardHtml(sttEngine)}</div>`;
+}
+
+function paintModelProgress(model) {
+  if (!state.desk) return;
+  const wasInstalled = Boolean(state.desk.settings.parakeet?.installed);
+  state.desk.settings.parakeet = model;
+  document.querySelectorAll('[data-stt-select="parakeet"]').forEach(card => {
+    card.querySelectorAll('[data-parakeet-download]').forEach(button => {
+      button.disabled = model.downloading || model.installed;
+      button.classList.toggle('is-downloading', Boolean(model.downloading));
+    });
+    const progress = card.querySelector('[data-model-progress]');
+    if (progress) progress.outerHTML = modelProgressHtml(model);
+    card.closest('.engine-grid')?.classList.toggle('has-model-progress', Boolean(model.downloading || (model.progress?.error && !model.installed)));
+  });
+  if (wasInstalled !== Boolean(model.installed) || (!model.downloading && model.progress?.error)) load().catch(() => {});
+}
+
+function openaiCardHtml(sttEngine) {
+  const isChecked = sttEngine === "openai";
+  const isPinned = Boolean(state.sttInfoOpenai);
+  return `<div role="radio" tabindex="0" class="engine-option${isPinned ? " is-pinned" : ""}" data-stt-select="openai" aria-checked="${isChecked ? "true" : "false"}"><div class="engine-normal-view"><div class="engine-head"><strong>gpt-transcribe</strong><button type="button" class="engine-info-btn" data-stt-info="openai" title="Model details" aria-label="Model details">${sttInfoIcon(false)}</button></div><p>Uses OpenAI gpt-transcribe with your personal API key.</p></div><div class="engine-info-view"><div class="engine-info-head"><div class="engine-info-meta"><strong class="engine-info-title">gpt-transcribe</strong><span class="engine-info-tagline">Automatic AI error correction</span></div><button type="button" class="engine-info-btn active" data-stt-info="openai" title="Close details" aria-label="Close details">${sttInfoIcon(true)}</button></div><div class="engine-metrics"><div class="engine-metric-row"><div class="engine-metric-labels"><span>Accuracy</span><strong>93%</strong></div><div class="engine-bar-track"><div class="engine-bar-fill" style="width: 93%;"></div></div></div><div class="engine-metric-row"><div class="engine-metric-labels"><span>Speed (API)</span><strong>34×</strong></div><div class="engine-bar-track"><div class="engine-bar-fill" style="width: 80%;"></div></div></div></div></div></div>`;
+}
+
+
 function settingsHtml() {
   const settings = state.desk.settings || {};
   const sttEngine = settings.sttEngine === "openai" ? "openai" : "parakeet";
@@ -568,26 +631,7 @@ function settingsHtml() {
   const ask = (sttEngine === "openai" && (state.askKey || !settings.hasKey))
     ? `<div class="prompt-banner">Please enter your OpenAI API key to use cloud speech recognition, or switch to Parakeet v3 (Local).</div>`
     : "";
-function sttInfoIcon(active) {
-  if (active) {
-    return `<svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="3" x2="13" y2="13"></line><line x1="13" y1="3" x2="3" y2="13"></line></svg>`;
-  }
-  return `<svg width="9" height="9" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="3.5" r="1.5"/><rect x="6.5" y="7" width="3" height="6" rx="1"/></svg>`;
-}
-
-function parakeetCardHtml(sttEngine) {
-  const isChecked = sttEngine === "parakeet";
-  const isPinned = Boolean(state.sttInfoParakeet);
-  return `<div role="radio" tabindex="0" class="engine-option${isPinned ? " is-pinned" : ""}" data-stt-select="parakeet" aria-checked="${isChecked ? "true" : "false"}"><div class="engine-normal-view"><div class="engine-head"><strong>Parakeet v3 (Open-Source)</strong><button type="button" class="engine-info-btn" data-stt-info="parakeet" title="Model details" aria-label="Model details">${sttInfoIcon(false)}</button></div><p>Runs locally on your PC in the background. Free and requires no API key.</p></div><div class="engine-info-view"><div class="engine-info-head"><div class="engine-info-meta"><strong class="engine-info-title">Parakeet v3</strong><span class="engine-info-tagline">Deployed on your CPU &mdash; 0.6B model</span></div><button type="button" class="engine-info-btn active" data-stt-info="parakeet" title="Close details" aria-label="Close details">${sttInfoIcon(true)}</button></div><div class="engine-metrics"><div class="engine-metric-row"><div class="engine-metric-labels"><span>Accuracy</span><strong>94%</strong></div><div class="engine-bar-track"><div class="engine-bar-fill" style="width: 94%;"></div></div></div><div class="engine-metric-row"><div class="engine-metric-labels"><span>Speed (CPU)</span><strong>22×</strong></div><div class="engine-bar-track"><div class="engine-bar-fill" style="width: 60%;"></div></div></div></div></div></div>`;
-}
-
-function openaiCardHtml(sttEngine) {
-  const isChecked = sttEngine === "openai";
-  const isPinned = Boolean(state.sttInfoOpenai);
-  return `<div role="radio" tabindex="0" class="engine-option${isPinned ? " is-pinned" : ""}" data-stt-select="openai" aria-checked="${isChecked ? "true" : "false"}"><div class="engine-normal-view"><div class="engine-head"><strong>gpt-transcribe</strong><button type="button" class="engine-info-btn" data-stt-info="openai" title="Model details" aria-label="Model details">${sttInfoIcon(false)}</button></div><p>Uses OpenAI gpt-transcribe with your personal API key.</p></div><div class="engine-info-view"><div class="engine-info-head"><div class="engine-info-meta"><strong class="engine-info-title">gpt-transcribe</strong><span class="engine-info-tagline">Automatic AI error correction</span></div><button type="button" class="engine-info-btn active" data-stt-info="openai" title="Close details" aria-label="Close details">${sttInfoIcon(true)}</button></div><div class="engine-metrics"><div class="engine-metric-row"><div class="engine-metric-labels"><span>Accuracy</span><strong>93%</strong></div><div class="engine-bar-track"><div class="engine-bar-fill" style="width: 93%;"></div></div></div><div class="engine-metric-row"><div class="engine-metric-labels"><span>Speed (API)</span><strong>34×</strong></div><div class="engine-bar-track"><div class="engine-bar-fill" style="width: 80%;"></div></div></div></div></div></div>`;
-}
-
-  const sttCard = `<div class="settings-card">${ask}<div class="section-label">AI features</div><div class="engine-grid" role="radiogroup" aria-label="Speech-to-Text Engine">${parakeetCardHtml(sttEngine)}${openaiCardHtml(sttEngine)}</div><label class="key">OpenAI API Key ${sttEngine === "parakeet" ? "(Optional)" : ""}<div class="key-row"><input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="${esc(hint)}"><button type="button" id="save-key" class="btn-primary">Save Key</button></div></label>${apiKeyMessage(settings) ? `<p class="api-key-status" role="status">${esc(apiKeyMessage(settings))}</p>` : ""}${apiKeyRetry(settings)}${improvementSwitches(settings)}</div>`;
+  const sttCard = `<div class="settings-card">${ask}<div class="section-label">AI features</div>${sttCardsHtml(sttEngine)}<label class="key">OpenAI API Key ${sttEngine === "parakeet" ? "(Optional)" : ""}<div class="key-row"><input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="${esc(hint)}"><button type="button" id="save-key" class="btn-primary">Save Key</button></div></label>${apiKeyMessage(settings) ? `<p class="api-key-status" role="status">${esc(apiKeyMessage(settings))}</p>` : ""}${apiKeyRetry(settings)}${improvementSwitches(settings)}</div>`;
 
   // Floating Bubble Appearance
   const bubbleStyle = state.draftFloatingBubble || settings.floatingBubble || "active";
@@ -649,7 +693,6 @@ function apiKeyRetry(settings) {
 
 async function retryApiKey() {
   if (state.onboardingBusy) return;
-  const speechStep = state.onboardingStep === "apikey";
   state.onboardingBusy = true;
   state.onboardingError = "";
   document.querySelectorAll("[data-api-key-retry]").forEach(button => { button.disabled = true; button.textContent = "Checking…"; });
@@ -657,7 +700,6 @@ async function retryApiKey() {
     const result = await window.openflow.dispatch("settings.verifyKey");
     if (result.settings.hasWorkingKey) {
       state.onboardingKey = "";
-      if (speechStep) await window.openflow.dispatch("settings.save", { sttEngine: "openai", onboardingDone: true, noteImproveEnabled: false, dictationCleanupEnabled: false });
     }
   } finally {
     state.onboardingBusy = false;
@@ -1011,27 +1053,21 @@ function paintOnboarding() {
     if (input) { input.value = state.onboardingKey; if (focused && !input.disabled) input.focus(); }
     return;
   }
-  if (state.onboardingStep === "apikey") {
-    const focused = document.activeElement?.id === "onboard-api-key";
-    host.innerHTML = `<div class="onboarding-card ai-onboarding" role="dialog" aria-modal="true"><div><h2>Enter OpenAI API key</h2><p class="sub">Use your OpenAI API key for cloud dictation and optional AI improvements.</p></div><div class="key-row"><input id="onboard-api-key" class="onboard-input" type="password" autocomplete="off" spellcheck="false" placeholder="sk-..." aria-label="OpenAI API key"${state.onboardingBusy ? " disabled" : ""}></div>${state.onboardingError || apiKeyMessage(settings) ? `<p class="api-key-status" role="status">${esc(state.onboardingError || apiKeyMessage(settings))}</p>` : ""}${apiKeyRetry(settings)}<div class="onboarding-actions"><button type="button" class="btn-secondary" data-onboard-back${state.onboardingBusy ? " disabled" : ""}>Back</button><button type="button" class="btn-primary" data-onboard-save-key${state.onboardingBusy ? " disabled" : ""}>${state.onboardingBusy ? "Checking…" : "Save & continue"}</button></div></div>`;
-    const input = host.querySelector("#onboard-api-key");
-    if (input) { input.value = state.onboardingKey; if (focused && !input.disabled) input.focus(); }
-    return;
-  }
-  host.innerHTML = `<div class="onboarding-card" role="dialog" aria-modal="true"><div><h2>Welcome to OpenFlow</h2><p class="sub">Choose how you want to transcribe your voice. You can change this anytime in Settings.</p></div><div class="onboarding-choices"><button type="button" class="onboarding-choice" data-onboard-choose="parakeet"><strong><span>Parakeet v3 (Local Open-Source)</span><span class="engine-badge ready">Recommended · Free</span></strong><span>Installed with OpenFlow. Runs locally on your PC in the background — start immediately without an API key.</span></button><button type="button" class="onboarding-choice" data-onboard-choose="openai"><strong><span>OpenAI API (gpt-transcribe)</span><span class="engine-badge">Cloud API</span></strong><span>Transcribe in the cloud using your own OpenAI API key.</span></button></div></div>`;
+  const model = settings.parakeet || {};
+  host.innerHTML = `<div class="onboarding-card" role="dialog" aria-modal="true"><div><h2>How would you like to start?</h2><p class="sub">Download the free offline speech model, or start with an API key. You can download the model later in Settings.</p></div><div class="onboarding-choices"><button type="button" class="onboarding-choice" data-setup-choice="parakeet"><strong>${model.installed ? "Use Parakeet v3" : "Download Parakeet v3"}<span class="engine-badge ready">Offline · Free</span></strong><span>${model.installed ? "The offline model is ready on this PC." : "640 MB download. Your speech stays on this PC."}</span></button><button type="button" class="onboarding-choice" data-setup-choice="openai"><strong>Start with an API key<span class="engine-badge">No model download</span></strong><span>Use OpenAI for transcription. Add your key on the next screen.</span></button></div></div>`;
 }
 
 function aiFeaturesOnboardingHtml(settings) {
   const ready = Boolean(settings.hasWorkingKey);
   const keyField = !ready ? `<div class="ai-onboarding-key"><label for="ai-onboard-key">OpenAI API key</label><div class="key-row"><input id="ai-onboard-key" class="onboard-input" type="password" autocomplete="off" spellcheck="false" placeholder="sk-..."${state.onboardingBusy ? " disabled" : ""}><button type="button" class="btn-primary" data-ai-onboard-save-key${state.onboardingBusy ? " disabled" : ""}>${state.onboardingBusy ? "Checking…" : "Save key"}</button></div><p class="sub">Enter a working API key to enable these options.</p></div>` : "";
   const message = state.onboardingError || apiKeyMessage(settings);
-  return `<div class="onboarding-card ai-onboarding" role="dialog" aria-modal="true" aria-labelledby="ai-onboarding-title"><div><h2 id="ai-onboarding-title">AI improvements</h2><p class="sub">Choose optional improvements for dictation and notes.</p></div>${improvementSwitches(settings, "onboard-", true)}${keyField}${message ? `<p class="api-key-status" role="status">${esc(message)}</p>` : ""}${apiKeyRetry(settings)}<div class="onboarding-actions"><button type="button" class="btn-primary" data-ai-onboard-continue${state.onboardingBusy ? " disabled" : ""}>Continue</button></div></div>`;
+  return `<div class="onboarding-card ai-onboarding" role="dialog" aria-modal="true" aria-labelledby="ai-onboarding-title"><div><h2 id="ai-onboarding-title">AI features</h2><p class="sub">Choose your speech engine and optional improvements.</p></div>${sttCardsHtml(settings.sttEngine)}${improvementSwitches(settings, "onboard-", true)}${keyField}${message ? `<p class="api-key-status" role="status">${esc(message)}</p>` : ""}${apiKeyRetry(settings)}<div class="onboarding-actions"><button type="button" class="btn-primary" data-ai-onboard-continue${state.onboardingBusy || (settings.sttEngine === "openai" && !ready) ? " disabled" : ""}>Continue</button></div></div>`;
 }
 
-async function saveOnboardingKey(speechStep) {
+async function saveOnboardingKey() {
   if (state.onboardingBusy) return;
   const value = state.onboardingKey.trim();
-  if (!value) { document.querySelector(speechStep ? "#onboard-api-key" : "#ai-onboard-key")?.focus(); return; }
+  if (!value) { document.querySelector("#ai-onboard-key")?.focus(); return; }
   state.onboardingBusy = true;
   state.onboardingError = "";
   paintOnboarding();
@@ -1039,7 +1075,6 @@ async function saveOnboardingKey(speechStep) {
     const result = await window.openflow.dispatch("settings.save", { apiKey: value });
     if (result.settings.hasWorkingKey) {
       state.onboardingKey = "";
-      if (speechStep) await window.openflow.dispatch("settings.save", { sttEngine: "openai", onboardingDone: true, noteImproveEnabled: false, dictationCleanupEnabled: false });
     }
   } catch {
     state.onboardingError = "Could not save the API key. Please try again.";
@@ -1337,6 +1372,18 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    const modelDownload = event.target.closest("[data-parakeet-download]");
+    if (modelDownload && window.openflow) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!modelDownload.disabled) {
+        modelDownload.disabled = true;
+        try { const result = await window.openflow.dispatch("parakeet.download"); paintModelProgress(result.parakeet); }
+        catch { await load(); }
+      }
+      return;
+    }
+
     const sttInfo = event.target.closest("[data-stt-info]");
     if (sttInfo) {
       event.stopPropagation();
@@ -1354,6 +1401,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const sttSelect = event.target.closest("[data-stt-select]");
     if (sttSelect && window.openflow) {
       const nextEngine = sttSelect.dataset.sttSelect === "openai" ? "openai" : "parakeet";
+      if (state.onboardingStep === "ai-features") {
+        await window.openflow.dispatch("settings.save", { sttEngine: nextEngine });
+        await load();
+        return;
+      }
       state.confirmDeleteId = null;
       state.confirmSttEngine = nextEngine;
       paintConfirmModal();
@@ -1891,25 +1943,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.querySelector("#onboarding").addEventListener("click", async (event) => {
     if (event.target.closest("[data-api-key-retry]")) { await retryApiKey(); return; }
-    const choose = event.target.closest("[data-onboard-choose]");
-    if (choose) {
-      const choice = choose.dataset.onboardChoose;
-      if (choice === "parakeet") {
-        state.onboardingStep = null;
-        state.askKey = false;
-        state.view = "dictate";
-        await window.openflow.dispatch("settings.save", { sttEngine: "parakeet", onboardingDone: true, noteImproveEnabled: false, dictationCleanupEnabled: false });
-        await load();
-      } else {
-        if (state.desk.settings.hasWorkingKey) {
-          await window.openflow.dispatch("settings.save", { sttEngine: "openai", onboardingDone: true, noteImproveEnabled: false, dictationCleanupEnabled: false });
-          await load();
-        } else {
-          state.onboardingStep = "apikey";
-          paintOnboarding();
-          document.querySelector("#onboard-api-key")?.focus();
-        }
-      }
+    const choose = event.target.closest("[data-setup-choice]");
+    if (choose && !state.onboardingBusy) {
+      state.onboardingBusy = true;
+      const engine = choose.dataset.setupChoice;
+      try {
+        await window.openflow.dispatch("settings.save", { sttEngine: engine, onboardingDone: true, noteImproveEnabled: false, dictationCleanupEnabled: false });
+        if (engine === "parakeet" && !state.desk.settings.parakeet?.installed) await window.openflow.dispatch("parakeet.download");
+        state.view = "settings";
+        state.onboardingStep = "ai-features";
+      } finally { state.onboardingBusy = false; await load(); }
       return;
     }
     const settings = (state.desk && state.desk.settings) || {};
@@ -1925,7 +1968,7 @@ document.addEventListener("DOMContentLoaded", () => {
       await load();
       return;
     }
-    if (event.target.closest("[data-ai-onboard-save-key]")) { await saveOnboardingKey(false); return; }
+    if (event.target.closest("[data-ai-onboard-save-key]")) { await saveOnboardingKey(); return; }
     if (event.target.closest("[data-ai-onboard-continue]")) {
       if (state.onboardingBusy) return;
       await window.openflow.dispatch("settings.save", { aiFeaturesOnboardingDone: true, noteImproveOnboardingDone: true, noteImproveOnboardingRelease: NOTE_IMPROVE_ONBOARDING_RELEASE });
@@ -1935,17 +1978,12 @@ document.addEventListener("DOMContentLoaded", () => {
       await load();
       return;
     }
-    if (event.target.closest("[data-onboard-back]")) {
-      state.onboardingStep = "choose";
-      paintOnboarding();
-      return;
-    }
-    if (event.target.closest("[data-onboard-save-key]")) { await saveOnboardingKey(true); }
+
 
   });
 
   document.querySelector("#onboarding").addEventListener("input", event => {
-    if (event.target.matches("#onboard-api-key, #ai-onboard-key")) state.onboardingKey = event.target.value;
+    if (event.target.matches("#ai-onboard-key")) state.onboardingKey = event.target.value;
   });
   document.querySelector("#onboarding").addEventListener("keydown", async (event) => {
     if (event.key === "Enter" && event.target.closest("#ai-onboard-key")) {
@@ -1953,15 +1991,12 @@ document.addEventListener("DOMContentLoaded", () => {
       document.querySelector("[data-ai-onboard-save-key]")?.click();
       return;
     }
-    if (event.key === "Enter" && event.target.closest("#onboard-api-key")) {
-      event.preventDefault();
-      const saveBtn = document.querySelector("[data-onboard-save-key]");
-      if (saveBtn) saveBtn.click();
-    }
+
   });
 
   if (!window.openflow) return;
   window.openflow.on("note-voice", onEditorVoice);
+  window.openflow.on("model-install-progress", paintModelProgress);
   window.openflow.on("desk-refresh", (payload) => {
     load(payload).catch(() => {});
   });

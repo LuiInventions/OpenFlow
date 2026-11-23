@@ -2317,3 +2317,21 @@ button.saved {
 .ai-onboarding-key label { display: block; margin-bottom: 7px; font-size: 12px; font-weight: 500; }
 .ai-onboarding-key .key-row { gap: 8px; }
 .ai-onboarding .api-key-status { margin: 0; }
+
+/* Offline model controls share the compact dimensions of the info button. */
+.engine-actions { display: inline-flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.engine-subtitle { display: block; white-space: nowrap; font-size: 10.5px; line-height: 1.3; font-weight: 500; color: var(--muted); }
+.engine-download-btn { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 19px; height: 19px; padding: 0; border: 0; border-radius: 50%; background: #2563eb; color: #fff; transition: opacity .14s ease; }
+.engine-download-btn:hover { opacity: .85; }
+.engine-download-btn:disabled { cursor: default; }
+.engine-download-btn.is-downloading svg { display: none; }
+.engine-download-btn.is-downloading::after { content: ""; width: 9px; height: 9px; border: 1.5px solid #ffffff60; border-top-color: #fff; border-radius: 50%; animation: model-spin .8s linear infinite; }
+@keyframes model-spin { to { transform: rotate(360deg); } }
+.engine-grid.has-model-progress .engine-option { height: 138px; }
+.engine-grid.has-model-progress .engine-normal-view, .engine-grid.has-model-progress .engine-info-view { min-height: 0; }
+.model-progress { display: grid; gap: 5px; width: 100%; margin-top: auto; flex-shrink: 0; }
+.model-progress[hidden] { display: none; }
+.model-progress-track { height: 4px; overflow: hidden; border-radius: 999px; background: var(--line); }
+.model-progress-track span { display: block; height: 100%; background: #2563eb; border-radius: inherit; transition: width .15s linear; }
+.model-progress-text { color: var(--muted); font-size: 10.5px; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.ai-onboarding .engine-grid { margin-top: 2px; }
