@@ -632,8 +632,9 @@ function beginModelDownload() {
   if (!parakeet.getStatus(userData).downloading) {
     parakeet.ensureModelFiles(userData, deliver, { fetchImpl: apiFetch }).then(() => {
       // A finished download selects the offline model.
-      if (store) store.updateSettings({ sttEngine: "parakeet" });
+      if (store) store.updateSettings({ sttEngine: "parakeet", dictationCleanupEnabled: false });
       syncSttEngine();
+      applyFloatingBubbleState();
       refreshDesk();
     }).catch(() => { refreshDesk(); });
   }
@@ -789,6 +790,8 @@ function ensureApiKeyStatus() {
 }
 
 const baseBubbleElements = ["voice", "note", "tune", "shot"];
+// New installs start with a calmer bubble: microphone and voice note can be added in Settings.
+const defaultBubbleElements = ["note", "tune", "shot"];
 
 function commandsDir() {
   return path.join(app.getPath("userData"), "commands");
@@ -849,7 +852,7 @@ function publicSettings() {
   const dictationMode = settings.dictationMode === "toggle" ? "toggle" : "hold";
   const validFloatingBubble = ["active", "dimmed", "hidden"];
   const floatingBubble = validFloatingBubble.includes(settings.floatingBubble) ? settings.floatingBubble : "active";
-  const defaultElements = baseBubbleElements;
+  const defaultElements = defaultBubbleElements;
   const validIds = validBubbleIds();
   const bubbleElements = Array.isArray(settings.bubbleElements)
     ? settings.bubbleElements.filter((id) => validIds.includes(id))
@@ -869,7 +872,7 @@ function publicSettings() {
     apiKeyStatus: ensureApiKeyStatus().status(),
     hasWorkingKey: ensureApiKeyStatus().ready(),
     noteImproveEnabled: ensureApiKeyStatus().ready() && settings.noteImproveEnabled !== false,
-    dictationCleanupEnabled: ensureApiKeyStatus().ready() && settings.dictationCleanupEnabled === true,
+    dictationCleanupEnabled: ensureApiKeyStatus().ready() && settings.sttEngine === "openai" && settings.dictationCleanupEnabled === true,
     textModelReady: ensureTextCompletion().usable(),
     textImprovementModels: TEXT_MODELS,
     parakeet: parakeet.getStatus(app.getPath("userData")),
@@ -882,7 +885,7 @@ function applyFloatingBubbleState() {
   const mode = settings.floatingBubble || "active";
   const validIds = validBubbleIds();
   const filtered = Array.isArray(settings.bubbleElements) ? settings.bubbleElements.filter((id) => validIds.includes(id)) : [];
-  const elements = filtered.length ? filtered : baseBubbleElements;
+  const elements = filtered.length ? filtered : defaultBubbleElements;
   overlayWindow.setOpacity(1);
   if (mode === "hidden" && !dictating) {
     overlayWindow.setIgnoreMouseEvents(true, { forward: true });
@@ -896,7 +899,7 @@ function applyFloatingBubbleState() {
     floatingBubble: mode,
     bubbleElements: elements,
     voiceNoteButton: settings.voiceNoteButton !== false,
-    dictationCleanupEnabled: ensureApiKeyStatus().ready() && settings.dictationCleanupEnabled === true,
+    dictationCleanupEnabled: ensureApiKeyStatus().ready() && settings.sttEngine === "openai" && settings.dictationCleanupEnabled === true,
     dictationCleanupMode: settings.dictationCleanupMode || "raw",
     textModelReady: ensureTextCompletion().usable(),
     commands: store.listCommands().map((row) => ({ id: row.id, name: row.name, type: row.type, icon: row.icon })),
@@ -1518,6 +1521,7 @@ const actions = {
       patch.dictationCleanupEnabled = true;
       patch.dictationCleanupMode = "polished";
     }
+    if (engineAfter !== "openai") patch.dictationCleanupEnabled = false;
     store.updateSettings(patch);
     if (!cleanupActive(store.getSettings()) || previousCleanupMode !== store.getSettings().dictationCleanupMode || !ensureApiKeyStatus().ready()) {
       if (dictationCleanup) dictationCleanup.cancel();
@@ -1835,6 +1839,7 @@ if (!gotLock) {
     }
     store = createStore(path.join(app.getPath("userData"), "openflow.json"));
     skipOnboardingForExistingInstall();
+    if (store.getSettings().sttEngine !== "openai" && store.getSettings().dictationCleanupEnabled) store.updateSettings({ dictationCleanupEnabled: false });
     ensureCommandsScripts();
     applyFloatingBubbleState();
     createWindows();

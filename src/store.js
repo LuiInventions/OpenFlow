@@ -18,7 +18,7 @@ function blank() {
       dictationCleanupEnabled: false,
       dictationCleanupMode: "raw",
       floatingBubble: "active",
-      bubbleElements: ["voice", "note", "tune", "shot"],
+      bubbleElements: ["note", "tune", "shot"],
       transform: "polish",
       transformAuto: false,
       polishStyle: "clarity",

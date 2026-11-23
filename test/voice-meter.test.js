@@ -25,6 +25,17 @@ function run(noise, speech) {
   return { quiet, voiced };
 }
 
+test("first recording: digital silence and fade-in do not show room noise as speech", () => {
+  const measure = createVoiceMeter();
+  const frames = [];
+  for (let frame = 0; frame < 20; frame += 1) frames.push(measure(0));                  // stream warming up
+  for (let frame = 0; frame < 15; frame += 1) frames.push(measure(0.0001 + frame * 0.0001)); // fade-in
+  for (let frame = 0; frame < 120; frame += 1) frames.push(measure(0.0016 * (0.9 + 0.2 * ((frame * 7) % 5) / 5))); // room noise
+  assert.ok(frames.slice(0, 20).every(row => !row.voice), "digital silence is never voice");
+  const late = frames.slice(-60).filter(row => row.voice).length;
+  assert.equal(late, 0, "room noise still counted as voice after about one second");
+});
+
 for (const [name, noise, speech] of [
   ["quiet laptop microphone", 0.0002, 0.002],
   ["average microphone", 0.001, 0.02],

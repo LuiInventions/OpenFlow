@@ -15,7 +15,7 @@ test("background settings default to a resident desk", () => {
   assert.equal(settings.openAtLogin, false);
   assert.equal(settings.showHotkey, "CommandOrControl+Alt+O");
   assert.equal(settings.floatingBubble, "active");
-  assert.deepEqual(settings.bubbleElements, ["voice", "note", "tune", "shot"]);
+  assert.deepEqual(settings.bubbleElements, ["note", "tune", "shot"], "microphone and voice note are not in the default bubble");
 });
 
 test("dictionary, history, and notes round-trip in memory", () => {

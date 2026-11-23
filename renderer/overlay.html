@@ -194,7 +194,7 @@
     const vtrack = document.querySelector("#vtrack");
     const voiceGroup = document.querySelector("#voice-group");
     let floatingBubble = "active";
-    let bubbleElements = ["voice", "note", "tune", "shot"];
+    let bubbleElements = ["note", "tune", "shot"];
     let commandsList = [];
     const commandElements = new Map();
     let voiceNoteButton = true;
@@ -235,7 +235,7 @@
       let width = 72;
       let height = 18;
       if (mode !== "listening" && mode !== "working" && near) {
-        const activeIds = Array.isArray(bubbleElements) && bubbleElements.length ? bubbleElements : ["voice", "note", "tune", "shot"];
+        const activeIds = Array.isArray(bubbleElements) && bubbleElements.length ? bubbleElements : ["note", "tune", "shot"];
         const visibleCount = activeIds.filter((id) => {
           if (["voice", "note", "tune", "shot"].includes(id)) return true;
           return id.startsWith("cmd:") && commandsList.some((c) => c.id === id.slice(4));
@@ -370,7 +370,7 @@
         tune: tune,
         shot: shot,
       };
-      const activeIds = Array.isArray(bubbleElements) && bubbleElements.length ? bubbleElements : ["voice", "note", "tune", "shot"];
+      const activeIds = Array.isArray(bubbleElements) && bubbleElements.length ? bubbleElements : ["note", "tune", "shot"];
       Object.keys(elemMap).forEach((id) => {
         const el = elemMap[id];
         if (!el) return;
@@ -409,7 +409,7 @@
       grip.hidden = isHidden || open || busy;
       pill.hidden = !open && !busy;
 
-      const activeIds = Array.isArray(bubbleElements) && bubbleElements.length ? bubbleElements : ["voice", "note", "tune", "shot"];
+      const activeIds = Array.isArray(bubbleElements) && bubbleElements.length ? bubbleElements : ["note", "tune", "shot"];
       const elemMap = {
         voice: voiceGroup,
         note: note,
@@ -651,12 +651,17 @@
     // the loudest recent speech, so quiet laptop microphones move the bars as much
     // as loud headsets. Works in decibels on float samples (8-bit data loses quiet voices).
     function createVoiceMeter() {
-      let floor = 0; // the first frame sets it
+      let floor = null; // set by the first frame with real input
       let peak = -30;
       return function measure(rms) {
-        const db = 20 * Math.log10(Math.max(rms, 1e-7));
-        // Floor follows drops at once and rises slowly, so speech does not lift it.
-        floor = db < floor ? db : floor + 0.02;
+        // A freshly opened microphone first delivers digital silence; it must not
+        // become the noise floor, or normal room noise would look like speech.
+        if (rms < 1e-5) return { voice: false, level: 0 };
+        const db = 20 * Math.log10(rms);
+        // Floor follows drops at once and rises gradually (faster when far below the
+        // input, e.g. while the microphone fades in), so speech does not lift it.
+        if (floor === null || db < floor) floor = db;
+        else floor += Math.max(0.02, (db - floor) * 0.03);
         // Peak follows speech at once and decays slowly; keep 12 dB of range.
         peak = Math.max(db, peak - 0.08, floor + 12);
         const voice = db > floor + 6;

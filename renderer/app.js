@@ -40,6 +40,8 @@ let loadGeneration = 0;
 let draggedElemId = null;
 let draggedShelfId = null;
 
+// Default bubble: microphone and voice note are not included (can be added in Settings).
+const DEFAULT_BUBBLE_ELEMENTS = ["note", "tune", "shot"];
 const NOTE_IMPROVE_ONBOARDING_RELEASE = "1.5.6";
 // Live voice dictation into the note editor (streamed from the main process as "note-voice").
 const editorVoice = { state: "idle", waiters: [], base: "", transcript: "", key: "" };
@@ -227,9 +229,9 @@ async function load(pending) {
   state.desk = desk;
   const settings = desk.settings || {};
   if (!state.draftBubbleElements) {
-    const defaultElements = ["voice", "note", "tune", "shot"];
+    const defaultElements = DEFAULT_BUBBLE_ELEMENTS;
     const saved = Array.isArray(settings.bubbleElements) ? [...settings.bubbleElements] : defaultElements;
-    const allValid = [...defaultElements, ...((desk.commands || []).map((c) => `cmd:${c.id}`))];
+    const allValid = ["voice", ...defaultElements, ...((desk.commands || []).map((c) => `cmd:${c.id}`))];
     state.draftBubbleElements = saved.filter((k) => allValid.includes(k));
   }
   if (!state.draftFloatingBubble) {
@@ -748,7 +750,7 @@ function settingsHtml() {
   const allCommands = (state.desk && state.desk.commands) || [];
   const commandKeys = allCommands.map((c) => `cmd:${c.id}`);
   const allKeys = ["voice", "note", "tune", "shot", ...commandKeys];
-  const currentElems = (state.draftBubbleElements || ["voice", "note", "tune", "shot"]).filter((k) => allKeys.includes(k));
+  const currentElems = (state.draftBubbleElements || DEFAULT_BUBBLE_ELEMENTS).filter((k) => allKeys.includes(k));
   const removedKeys = allKeys.filter((k) => !currentElems.includes(k));
 
   const voiceNoteOn = state.draftVoiceNote !== false;
@@ -812,7 +814,7 @@ function improvementSwitches(settings, prefix = "", compact = false) {
   return `<div class="improvement-switches">${compact ? "" : '<div class="section-label">Notes &amp; Dictation</div>'}${[
     ["Improve Notes", "note-improve", settings.noteImproveEnabled !== false, compact ? "Polish and rewrite notes using the sparkle button." : "Rewrite and polish your notes with AI. Use the sparkle button inside a note."],
     ["Improve Dictation", "dictation-cleanup", settings.dictationCleanupEnabled === true, compact ? "Compress or polish dictated text before pasting. Choose Compact or Polish in the bubble." : "Compress dictated text without losing meaningful information before pasting. Choose Original, Compact dictation, or Polish dictation from the bubble menu."],
-  ].map(([label, feature, enabled, description]) => `<div class="improvement-switch-row"><div class="improvement-switch-copy"><div class="improvement-switch-heading"><strong>${label}</strong><span class="api-only">(API only)</span></div><p id="${prefix}${feature}-help">${description}</p></div><button type="button" class="switch-btn" role="switch" data-${feature}-enabled aria-checked="${ready && enabled}" aria-label="${label}" aria-describedby="${prefix}${feature}-help"${ready ? "" : " disabled"}><span class="switch-thumb"></span></button></div>`).join("")}${modelRow}</div>`;
+  ].map(([label, feature, enabled, description]) => { const usable = ready && (feature !== "dictation-cleanup" || settings.sttEngine === "openai"); return `<div class="improvement-switch-row"><div class="improvement-switch-copy"><div class="improvement-switch-heading"><strong>${label}</strong><span class="api-only">(API only)</span></div><p id="${prefix}${feature}-help">${description}</p></div><button type="button" class="switch-btn" role="switch" data-${feature}-enabled aria-checked="${usable && enabled}" aria-label="${label}" aria-describedby="${prefix}${feature}-help"${usable ? "" : " disabled"}><span class="switch-thumb"></span></button></div>`; }).join("")}${modelRow}</div>`;
 }
 
 function paintCommandEditor() {
@@ -1301,7 +1303,7 @@ document.addEventListener("DOMContentLoaded", () => {
             // Wherever it lands on the bubble, the voice note button snaps back onto the mic.
             state.draftVoiceNote = true;
           } else {
-            const list = [...(state.draftBubbleElements || ["voice", "note", "tune", "shot"])];
+            const list = [...(state.draftBubbleElements || DEFAULT_BUBBLE_ELEMENTS)];
             if (!list.includes(shelfId)) {
               const target = event.target.closest(".bubble-preview-item");
               const toIdx = target ? list.indexOf(target.dataset.elemId) : -1;
@@ -1318,7 +1320,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (item && draggedElemId && item.dataset.elemId !== draggedElemId) {
         event.preventDefault();
         const targetId = item.dataset.elemId;
-        const list = [...(state.draftBubbleElements || ["voice", "note", "tune", "shot"])];
+        const list = [...(state.draftBubbleElements || DEFAULT_BUBBLE_ELEMENTS)];
         const fromIdx = list.indexOf(draggedElemId);
         const toIdx = list.indexOf(targetId);
         if (fromIdx !== -1 && toIdx !== -1) {
@@ -1590,7 +1592,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const elemRemove = event.target.closest("[data-elem-remove]");
     if (elemRemove) {
       const key = elemRemove.dataset.elemRemove;
-      const list = state.draftBubbleElements || ["voice", "note", "tune", "shot"];
+      const list = state.draftBubbleElements || DEFAULT_BUBBLE_ELEMENTS;
       if (list.length > 1) {
         state.draftBubbleElements = list.filter((k) => k !== key);
         render();
@@ -1601,7 +1603,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const elemAdd = event.target.closest("[data-elem-add]");
     if (elemAdd) {
       const key = elemAdd.dataset.elemAdd;
-      const list = state.draftBubbleElements || ["voice", "note", "tune", "shot"];
+      const list = state.draftBubbleElements || DEFAULT_BUBBLE_ELEMENTS;
       if (!list.includes(key)) {
         state.draftBubbleElements = [...list, key];
         render();
@@ -1611,7 +1613,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const bubbleReset = event.target.closest("#bubble-reset");
     if (bubbleReset) {
-      state.draftBubbleElements = ["voice", "note", "tune", "shot"];
+      state.draftBubbleElements = DEFAULT_BUBBLE_ELEMENTS;
       state.draftFloatingBubble = "active";
       state.draftVoiceNote = true;
       render();
@@ -1623,7 +1625,7 @@ document.addEventListener("DOMContentLoaded", () => {
       bubbleSave.disabled = true;
       bubbleSave.textContent = "Saving...";
       await window.openflow.dispatch("settings.save", {
-        bubbleElements: state.draftBubbleElements || ["voice", "note", "tune", "shot"],
+        bubbleElements: state.draftBubbleElements || DEFAULT_BUBBLE_ELEMENTS,
         floatingBubble: state.draftFloatingBubble || "active",
         voiceNoteButton: state.draftVoiceNote !== false,
       });

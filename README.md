@@ -16,6 +16,12 @@ The compact dark-black floating bubble rests at the bottom of your screen. Hold 
 
 ---
 
+## New in 1.5.36
+
+- **Calmer default bubble:** new installs start without the microphone and voice-note button in the bubble. Add them anytime in **Settings → Manage Elements**; dictation by shortcut works as before.
+- **Improve Dictation is a gpt-transcribe feature:** selecting Parakeet turns it off and its switch cannot be used. Choosing gpt-transcribe with a working key turns it back on (Polish).
+- **Level meter on the very first recording:** right after installing, the bars no longer stand high and red without sound; a freshly opened microphone is no longer mistaken for speech.
+
 ## New in 1.5.35
 
 - **Every dictation is transcribed and pasted:** quiet microphones (common on laptops) were sometimes treated as silence, so the loading animation was skipped and nothing was pasted. Speech is now recognised by its rhythm of syllables and pauses, not only by loudness.
@@ -177,7 +183,7 @@ OpenFlow has **zero subscriptions or middleman fees**:
 
 Download the latest Windows installer from the [**Releases**](https://github.com/LuiInventions/OpenFlow/releases) page:
 
-- **`OpenFlow-Setup-1.5.35.exe`** — Lightweight Windows NSIS Web/Stub Installer (~1 MB download) with customizable install directory, Start Menu entry, and Desktop shortcut. Automatically fetches the application package from GitHub Releases during setup, opens OpenFlow, and opens the **AI features** setup, where you download the optional **Parakeet v3** model or choose gpt-transcribe with your API key. Existing models are reused; later model downloads show their progress in the Parakeet card. Notes use a narrow left rail to collapse, search, open another note, improve, and format. The rail icons line up with the first line of the note. Search in Notes shows every saved note, and long titles wrap instead of being cut off. Note improvement slides up under Copy and Save, and suggestions show a spinner while they generate. Includes Compact/Polish Dictation, verified-key onboarding, and combined Note & Dictation API usage.
+- **`OpenFlow-Setup-1.5.36.exe`** — Lightweight Windows NSIS Web/Stub Installer (~1 MB download) with customizable install directory, Start Menu entry, and Desktop shortcut. Automatically fetches the application package from GitHub Releases during setup, opens OpenFlow, and opens the **AI features** setup, where you download the optional **Parakeet v3** model or choose gpt-transcribe with your API key. Existing models are reused; later model downloads show their progress in the Parakeet card. Notes use a narrow left rail to collapse, search, open another note, improve, and format. The rail icons line up with the first line of the note. Search in Notes shows every saved note, and long titles wrap instead of being cut off. Note improvement slides up under Copy and Save, and suggestions show a spinner while they generate. Includes Compact/Polish Dictation, verified-key onboarding, and combined Note & Dictation API usage.
 
 Requirements: Windows 10 or Windows 11 (64-bit). An OpenAI API key is optional.
 
@@ -191,7 +197,7 @@ npm test
 npm run dist
 ```
 
-This builds the Windows NSIS Web Stub installer (`release/nsis-web/OpenFlow-Setup-1.5.35.exe`).
+This builds the Windows NSIS Web Stub installer (`release/nsis-web/OpenFlow-Setup-1.5.36.exe`).
 
 For a full installer containing the application package, built locally without publishing:
 
@@ -199,7 +205,7 @@ For a full installer containing the application package, built locally without p
 npm run dist:local
 ```
 
-Output: `release-local/OpenFlow-Setup-1.5.35-local.exe`. Speech-model downloads are separate; existing models on this PC are reused.
+Output: `release-local/OpenFlow-Setup-1.5.36-local.exe`. Speech-model downloads are separate; existing models on this PC are reused.
 
 ---
 
