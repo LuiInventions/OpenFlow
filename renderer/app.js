@@ -264,11 +264,14 @@ async function load(pending) {
       state.editor = null;
     }
   }
+  if (settings.hasKey) state.askKey = false;
   const apiKeyDraft = document.querySelector("#api-key")?.value || "";
   if (pending?.parakeetDownload) state.view = "settings";
   render();
   if (apiKeyDraft && document.querySelector("#api-key")) document.querySelector("#api-key").value = apiKeyDraft;
-  if (state.askKey && state.view === "settings" && !state.onboardingStep) {
+  // Focus the key field only when the app explicitly asks for a key (window opened
+  // for a missing key), never on the reloads that follow every settings click.
+  if (pending?.askKey && state.askKey && state.view === "settings" && !state.onboardingStep) {
     const key = document.querySelector("#api-key");
     if (key) key.focus();
   }
@@ -626,7 +629,7 @@ function settingsHtml() {
     : "Keep the shortcut held down while speaking and release to finish dictation.";
   const dictationCard = `<div class="settings-card"><div class="section-label">Dictation</div><div class="shortcut-grid" role="radiogroup" aria-label="Dictation Shortcut">${shortcutHtml}</div><div class="mode-toggle-card"><div class="mode-toggle-copy"><strong>${modeTitle}</strong><span>${modeDesc}</span></div><div class="mode-slider-wrap"><span class="mode-slider-label${!isToggle ? " active" : ""}">Hold</span><button type="button" class="switch-btn" role="switch" data-dictation-mode-toggle aria-checked="${isToggle ? "true" : "false"}" aria-label="Toggle between Hold to Dictate and Press to Start/Stop"><span class="switch-thumb"></span></button><span class="mode-slider-label${isToggle ? " active" : ""}">Start / Stop</span></div></div>${soundCard}</div>`;
   const hint = settings.hasKey ? "Saved locally (enter a new key to replace)" : "sk-... (optional with Parakeet v3)";
-  const ask = (sttEngine === "openai" && (state.askKey || !settings.hasKey))
+  const ask = (sttEngine === "openai" && !settings.hasKey)
     ? `<div class="prompt-banner">Please enter your OpenAI API key to use cloud speech recognition, or switch to Parakeet v3 (Local).</div>`
     : "";
   const sttCard = `<div class="settings-card">${ask}<div class="section-label">AI features</div>${sttCardsHtml(sttEngine)}<label class="key">OpenAI API Key ${sttEngine === "parakeet" ? "(Optional)" : ""}<div class="key-row"><input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="${esc(hint)}"><button type="button" id="save-key" class="btn-primary">Save Key</button></div></label>${apiKeyMessage(settings) ? `<p class="api-key-status" role="status">${esc(apiKeyMessage(settings))}</p>` : ""}${apiKeyRetry(settings)}${improvementSwitches(settings)}</div>`;
