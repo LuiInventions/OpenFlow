@@ -16,6 +16,15 @@ The compact dark-black floating bubble rests at the bottom of your screen. Hold 
 
 ---
 
+## New in 1.5.34
+
+- **Smoother first start:** the window appears first; the shortcut helper, the microphone check and the offline model now load one after another in the background instead of all at once. Dictating right away still works.
+- **Setup only for new installs:** updating or reinstalling over existing OpenFlow data no longer shows the AI features setup again.
+- **Fixed window size:** the OpenFlow window keeps its standard size and can no longer be resized or maximized.
+- **Level meter for every microphone:** the bars while dictating adapt to your microphone, so quiet laptop microphones show clear feedback as soon as you speak.
+- **Parakeet download in Settings:** the blue download button now appears only during setup. In Settings, choose the Parakeet card and confirm **Download & switch**.
+- **Slimmer bubble:** the minimized bubble is flatter and stays centred in its usual place.
+
 ## New in 1.5.33
 
 - **Own shortcut:** in **Settings → Dictation**, the fourth box replaces `Ctrl + Shift`. Click it, press two keys, and they become your dictation shortcut. One of them must be **Ctrl, Alt or Win**, so normal typing never triggers dictation. Click the box again to record a different shortcut; **Esc** cancels.
@@ -121,7 +130,7 @@ OpenFlow features a warm, distraction-free two-column layout (`820 × 540`) comb
 | **Notes** | Lists all saved notes vertically in proportional, rounded cards with a clean trash icon on the right (asking for confirmation before deleting). Clicking any note—or the floating round pen-and-paper compose button in the bottom right—opens the minimalist note-bubble card over the entire Notes area (editable note title on top, no tabs, max 1 note open, with **`Back`**, **`Copy`**, and **`Save`** actions). Unsaved notes are never persisted unless you explicitly click **`Save`**, which saves your changes and returns to the Notes list. |
 | **Commands** | Create, manage, and execute custom scripts (.bat, .ps1, .cmd). Includes a 3-step creation wizard (script type selection with branded logos, name validation, and 20-symbol icon picker), interactive circular icon badges with live symbol customization, search filter, standard non-elevated execution by default, and optional elevated execution (toggleable UAC Run as Administrator) directly from the floating desktop bubble or app. Seamlessly integrated into **Manage Elements** for custom bubble ordering. |
 | **Usage** | Summarizes the last 30 days in the same three cards and bar chart. A dropdown at the top right opens **OpenAI STT** (recorded minutes, estimated API cost, spoken words), **Local Usage** (the same figures for Parakeet on this PC, at no API cost), or **Note & Dictation API** (note improvements plus Compact/Polish Dictation, processed words, estimated API cost, and tokens). |
-| **Settings** | • **AI features**: Switch anytime between **Parakeet v3 (Open-Source, Local)** and **OpenAI API (`gpt-transcribe`)**, and manage your optional OpenAI API key. On first launch, choose an optional Parakeet model download or start with an API key. Download the offline model later using the blue button next to its info button; the card shows download progress in MB.<br><br>• **Dictation**: Choose your global dictation shortcut between **`Ctrl + Win` (Default)**, **`Ctrl + Space`**, **`Ctrl + Alt`**, or record an **Own shortcut** (click the box and press two keys; one of them must be Ctrl, Alt or Win), and use the mode toggle switch to switch between **Hold Shortcut to Dictate** (hold to speak, release to finish) and **Press Once to Start / Second Time to Stop**.<br><br>• **Floating Bubble & Manage Elements**: Select bubble appearance (**Active**, **Grayed Out**, or **Hidden** with shortcut-only dictation) and customize your bubble icons (drag to reorder, click − to remove, add back). |
+| **Settings** | • **AI features**: Switch anytime between **Parakeet v3 (Open-Source, Local)** and **OpenAI API (`gpt-transcribe`)**, and manage your optional OpenAI API key. On first launch, download the optional Parakeet model or choose gpt-transcribe with an API key. To download the offline model later, choose the Parakeet card and confirm; the card shows download progress in MB.<br><br>• **Dictation**: Choose your global dictation shortcut between **`Ctrl + Win` (Default)**, **`Ctrl + Space`**, **`Ctrl + Alt`**, or record an **Own shortcut** (click the box and press two keys; one of them must be Ctrl, Alt or Win), and use the mode toggle switch to switch between **Hold Shortcut to Dictate** (hold to speak, release to finish) and **Press Once to Start / Second Time to Stop**.<br><br>• **Floating Bubble & Manage Elements**: Select bubble appearance (**Active**, **Grayed Out**, or **Hidden** with shortcut-only dictation) and customize your bubble icons (drag to reorder, click − to remove, add back). |
 
 ---
 
@@ -160,7 +169,7 @@ OpenFlow has **zero subscriptions or middleman fees**:
 
 Download the latest Windows installer from the [**Releases**](https://github.com/LuiInventions/OpenFlow/releases) page:
 
-- **`OpenFlow-Setup-1.5.33.exe`** — Lightweight Windows NSIS Web/Stub Installer (~1 MB download) with customizable install directory, Start Menu entry, and Desktop shortcut. Automatically fetches the application package from GitHub Releases during setup, opens OpenFlow, and opens the **AI features** setup, where you download the optional **Parakeet v3** model or choose gpt-transcribe with your API key. Existing models are reused; later model downloads show their progress in the Parakeet card. Notes use a narrow left rail to collapse, search, open another note, improve, and format. The rail icons line up with the first line of the note. Search in Notes shows every saved note, and long titles wrap instead of being cut off. Note improvement slides up under Copy and Save, and suggestions show a spinner while they generate. Includes Compact/Polish Dictation, verified-key onboarding, and combined Note & Dictation API usage.
+- **`OpenFlow-Setup-1.5.34.exe`** — Lightweight Windows NSIS Web/Stub Installer (~1 MB download) with customizable install directory, Start Menu entry, and Desktop shortcut. Automatically fetches the application package from GitHub Releases during setup, opens OpenFlow, and opens the **AI features** setup, where you download the optional **Parakeet v3** model or choose gpt-transcribe with your API key. Existing models are reused; later model downloads show their progress in the Parakeet card. Notes use a narrow left rail to collapse, search, open another note, improve, and format. The rail icons line up with the first line of the note. Search in Notes shows every saved note, and long titles wrap instead of being cut off. Note improvement slides up under Copy and Save, and suggestions show a spinner while they generate. Includes Compact/Polish Dictation, verified-key onboarding, and combined Note & Dictation API usage.
 
 Requirements: Windows 10 or Windows 11 (64-bit). An OpenAI API key is optional.
 
@@ -174,7 +183,7 @@ npm test
 npm run dist
 ```
 
-This builds the Windows NSIS Web Stub installer (`release/nsis-web/OpenFlow-Setup-1.5.33.exe`).
+This builds the Windows NSIS Web Stub installer (`release/nsis-web/OpenFlow-Setup-1.5.34.exe`).
 
 For a full installer containing the application package, built locally without publishing:
 
@@ -182,7 +191,7 @@ For a full installer containing the application package, built locally without p
 npm run dist:local
 ```
 
-Output: `release-local/OpenFlow-Setup-1.5.33-local.exe`. Speech-model downloads are separate; existing models on this PC are reused.
+Output: `release-local/OpenFlow-Setup-1.5.34-local.exe`. Speech-model downloads are separate; existing models on this PC are reused.
 
 ---
 

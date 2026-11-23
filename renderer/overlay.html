@@ -39,8 +39,11 @@
     input:checked + .switch { background: #000; }
     input:checked + .switch i { left: 16px; }
     .check { position: absolute; opacity: 0; pointer-events: none; }
-    #grip { width: 72px; height: 18px; padding: 0; border: 0; border-radius: 999px; background: #000; position: relative; cursor: pointer; display: block; box-shadow: none; clip-path: inset(2px 0 2px 0); }
-    #grip span { position: absolute; top: 5px; left: 18px; width: 36px; height: 2px; border-radius: 2px; background: #fff; display: block; }
+    /* Minimized bubble: a 7px pill (3px above the white line, 2px below) centred where the
+       taller pill was. The button keeps its full 72x18 click area; ::before draws the pill. */
+    #grip { width: 72px; height: 18px; padding: 0; border: 0; border-radius: 999px; background: transparent; position: relative; cursor: pointer; display: block; box-shadow: none; }
+    #grip::before { content: ""; position: absolute; left: 0; right: 0; top: 6px; height: 7px; border-radius: 4px; background: #000; transition: background-color .18s ease; }
+    #grip span { position: absolute; top: 9px; left: 18px; width: 36px; height: 2px; border-radius: 2px; background: #fff; display: block; }
     .pill { position: relative; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 4px; width: auto; min-width: 44px; height: 36px; padding: 3px 6px; background: #000; color: #fff; border-radius: 999px; box-shadow: none; }
     .pill button { position: relative; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: #fff; display: grid; place-items: center; cursor: pointer; transition: background-color .14s ease, transform .14s ease; }
     .pill button:hover { background: #1f1f1f; }
@@ -83,8 +86,10 @@
     #vnote:hover::after, #vnote:focus-visible::after { transform: translateY(0); }
 
     /* Floating bubble appearance states */
-    body[data-bubble-style="dimmed"] #grip { opacity: 0.35; filter: grayscale(1); background: #555555; transition: opacity .18s ease, filter .18s ease, background-color .18s ease; }
-    body[data-bubble-style="dimmed"] #grip:hover, body[data-bubble-style="dimmed"][data-near="true"] #grip { opacity: 0.85; filter: grayscale(0); background: #000000; }
+    body[data-bubble-style="dimmed"] #grip { opacity: 0.35; filter: grayscale(1); transition: opacity .18s ease, filter .18s ease; }
+    body[data-bubble-style="dimmed"] #grip::before { background: #555555; }
+    body[data-bubble-style="dimmed"] #grip:hover, body[data-bubble-style="dimmed"][data-near="true"] #grip { opacity: 0.85; filter: grayscale(0); }
+    body[data-bubble-style="dimmed"] #grip:hover::before, body[data-bubble-style="dimmed"][data-near="true"] #grip::before { background: #000000; }
     body[data-bubble-style="dimmed"] .pill { opacity: 0.45; filter: grayscale(0.8); transition: opacity .18s ease, filter .18s ease; }
     body[data-bubble-style="dimmed"]:hover .pill,
     body[data-bubble-style="dimmed"][data-near="true"] .pill,
@@ -472,18 +477,6 @@
       return merged;
     }
 
-    function markSpeaking(frame) {
-      let sum = 0;
-      let count = 0;
-      const step = Math.max(1, Math.floor(frame.length / 64));
-      for (let index = 0; index < frame.length; index += step) {
-        const sample = frame[index];
-        sum += sample * sample;
-        count += 1;
-      }
-      document.body.classList.toggle("speaking", count > 0 && Math.sqrt(sum / count) > 0.045);
-    }
-
     function streamLive(current) {
       return Boolean(current && current.stream && current.stream.getTracks().some((track) => track.readyState === "live"));
     }
@@ -596,7 +589,6 @@
       const copy = frame instanceof Float32Array ? frame : Float32Array.from(frame);
       target.frames.push(copy);
       target.samples += copy.length;
-      if (armed && target === activeBucket) markSpeaking(copy);
       if (target.voice && target === activeBucket) {
         // Voice notes stream text live: cut a chunk at the next short pause (or a hard cap)
         // so every phrase is transcribed while the user keeps talking.
@@ -652,25 +644,44 @@
       }
     }
 
+    // Level meter that adapts to the microphone: it learns the room's noise floor and
+    // the loudest recent speech, so quiet laptop microphones move the bars as much
+    // as loud headsets. Works in decibels on float samples (8-bit data loses quiet voices).
+    function createVoiceMeter() {
+      let floor = 0; // the first frame sets it
+      let peak = -30;
+      return function measure(rms) {
+        const db = 20 * Math.log10(Math.max(rms, 1e-7));
+        // Floor follows drops at once and rises slowly, so speech does not lift it.
+        floor = db < floor ? db : floor + 0.02;
+        // Peak follows speech at once and decays slowly; keep 12 dB of range.
+        peak = Math.max(db, peak - 0.08, floor + 12);
+        const voice = db > floor + 6;
+        const level = Math.max(0, Math.min(1, (db - floor - 3) / (peak - floor - 3)));
+        return { voice, level };
+      };
+    }
+
     function watchAnalyser() {
       if (!capture || !capture.analyser) return;
-      const data = new Uint8Array(capture.analyser.fftSize);
+      const data = new Float32Array(capture.analyser.fftSize);
+      const measure = createVoiceMeter();
+      const bars = Array.from(document.querySelectorAll(".eq i"));
+      let hold = 0;
       const tick = () => {
         if (!armed || !capture || !capture.analyser) return;
-        capture.analyser.getByteTimeDomainData(data);
+        capture.analyser.getFloatTimeDomainData(data);
         let sum = 0;
-        for (let index = 0; index < data.length; index += 1) {
-          const sample = (data[index] - 128) / 128;
-          sum += sample * sample;
-        }
-        const level = Math.sqrt(sum / data.length);
-        const hot = level > 0.02;
+        for (let index = 0; index < data.length; index += 1) sum += data[index] * data[index];
+        const { voice, level } = measure(Math.sqrt(sum / data.length));
+        // Short hold so the bars do not flicker between syllables.
+        hold = voice ? 6 : Math.max(0, hold - 1);
+        const hot = hold > 0;
         document.body.classList.toggle("speaking", hot);
-        const bars = document.querySelectorAll(".eq i");
         bars.forEach((bar, index) => {
           const shape = 0.72 + (index % 2) * 0.28;
-          const px = hot ? Math.max(4, Math.min(14, 3 + level * 110 * shape)) : 3;
-          bar.style.height = `${px}px`;
+          const px = hot ? Math.round(5 + 9 * Math.max(0.15, level) * shape) : 3;
+          bar.style.height = `${Math.min(14, px)}px`;
         });
         capture.meter = requestAnimationFrame(tick);
       };

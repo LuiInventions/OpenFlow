@@ -234,6 +234,16 @@ function needsKeyPrompt() {
   return settings.sttEngine === "openai" && !readKey();
 }
 
+// Onboarding is for new installs only. Earlier OpenFlow data on this PC (finished
+// setup, notes, dictation history, an API key or a downloaded model) means an update.
+function skipOnboardingForExistingInstall() {
+  const settings = store.getSettings();
+  if (settings.onboardingDone && settings.aiFeaturesOnboardingDone) return;
+  const used = settings.onboardingDone || store.listPads().length > 0 || store.listHistory().length > 0
+    || Boolean(readKey()) || parakeet.isModelInstalled(app.getPath("userData"));
+  if (used) store.updateSettings({ onboardingDone: true, aiFeaturesOnboardingDone: true });
+}
+
 function needsOnboarding() {
   if (process.env.OPENFLOW_SMOKE === "1" || !store) return false;
   return !store.getSettings().onboardingDone;
@@ -1121,11 +1131,13 @@ function registerHotkey() {
 }
 
 function createWindows() {
+  // Fixed size: the window cannot be resized, maximized or made full screen.
   mainWindow = new BrowserWindow({
     width: 820,
     height: 540,
-    minWidth: 680,
-    minHeight: 440,
+    resizable: false,
+    maximizable: false,
+    fullscreenable: false,
     show: false,
     title: "OpenFlow",
     icon: path.join(root, "build", "icon.png"),
@@ -1808,15 +1820,20 @@ if (!gotLock) {
       session.defaultSession.setDevicePermissionHandler((details) => details.deviceType === "microphone" || details.deviceType === "audio");
     }
     store = createStore(path.join(app.getPath("userData"), "openflow.json"));
+    skipOnboardingForExistingInstall();
     ensureCommandsScripts();
-    syncSttEngine();
     applyFloatingBubbleState();
     createWindows();
     ensureApiKeyStatus().validate().catch(() => {});
     createTray();
-    await ensureMicrophone();
-    startChord();
     watchPointer();
+    // Heavy work starts after the window is up and one step at a time, so the first
+    // launch (often right after installing) stays responsive on slower laptops:
+    // shortcut hook (~1 s CPU), microphone check (~3 s), offline model (~5 s, 700 MB).
+    // Dictating earlier still works; the model then loads on first use.
+    setTimeout(startChord, 600);
+    setTimeout(() => { ensureMicrophone().catch(() => {}); }, 4000);
+    setTimeout(syncSttEngine, 9000);
   });
 }
 
