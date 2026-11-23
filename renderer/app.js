@@ -235,9 +235,7 @@ async function load(pending) {
   if (state.draftVoiceNote === null) {
     state.draftVoiceNote = settings.voiceNoteButton !== false;
   }
-  if ((pending && pending.onboarding) || !settings.onboardingDone) {
-    if (!state.onboardingStep) state.onboardingStep = "download-choice";
-  } else if (!settings.aiFeaturesOnboardingDone) {
+  if ((pending && pending.onboarding) || !settings.onboardingDone || !settings.aiFeaturesOnboardingDone) {
     state.onboardingStep = "ai-features";
   } else {
     state.onboardingStep = null;
@@ -1046,22 +1044,26 @@ function paintOnboarding() {
   }
   host.hidden = false;
   const settings = (state.desk && state.desk.settings) || {};
-  if (state.onboardingStep === "ai-features") {
-    const focused = document.activeElement?.id === "ai-onboard-key";
-    host.innerHTML = aiFeaturesOnboardingHtml(settings);
-    const input = host.querySelector("#ai-onboard-key");
-    if (input) { input.value = state.onboardingKey; if (focused && !input.disabled) input.focus(); }
-    return;
-  }
+  const focused = document.activeElement?.id === "ai-onboard-key";
+  host.innerHTML = aiFeaturesOnboardingHtml(settings);
+  const input = host.querySelector("#ai-onboard-key");
+  if (input) { input.value = state.onboardingKey; if (focused && !input.disabled) input.focus(); }
+}
+
+// Continue needs a usable speech engine: Parakeet once its download has started
+// (it keeps loading in the background), gpt-transcribe once a working key is saved.
+function onboardingEngineReady(settings) {
+  if (settings.sttEngine === "openai") return Boolean(settings.hasWorkingKey);
   const model = settings.parakeet || {};
-  host.innerHTML = `<div class="onboarding-card" role="dialog" aria-modal="true"><div><h2>How would you like to start?</h2><p class="sub">Download the free offline speech model, or start with an API key. You can download the model later in Settings.</p></div><div class="onboarding-choices"><button type="button" class="onboarding-choice" data-setup-choice="parakeet"><strong>${model.installed ? "Use Parakeet v3" : "Download Parakeet v3"}<span class="engine-badge ready">Offline · Free</span></strong><span>${model.installed ? "The offline model is ready on this PC." : "640 MB download. Your speech stays on this PC."}</span></button><button type="button" class="onboarding-choice" data-setup-choice="openai"><strong>Start with an API key<span class="engine-badge">No model download</span></strong><span>Use OpenAI for transcription. Add your key on the next screen.</span></button></div></div>`;
+  return Boolean(model.installed || model.downloading);
 }
 
 function aiFeaturesOnboardingHtml(settings) {
   const ready = Boolean(settings.hasWorkingKey);
-  const keyField = !ready ? `<div class="ai-onboarding-key"><label for="ai-onboard-key">OpenAI API key</label><div class="key-row"><input id="ai-onboard-key" class="onboard-input" type="password" autocomplete="off" spellcheck="false" placeholder="sk-..."${state.onboardingBusy ? " disabled" : ""}><button type="button" class="btn-primary" data-ai-onboard-save-key${state.onboardingBusy ? " disabled" : ""}>${state.onboardingBusy ? "Checking…" : "Save key"}</button></div><p class="sub">Enter a working API key to enable these options.</p></div>` : "";
+  const keyField = !ready ? `<div class="ai-onboarding-key"><label for="ai-onboard-key">OpenAI API key <span class="api-only">(for gpt-transcribe and improvements)</span></label><div class="key-row"><input id="ai-onboard-key" class="onboard-input" type="password" autocomplete="off" spellcheck="false" placeholder="sk-..."${state.onboardingBusy ? " disabled" : ""}><button type="button" class="btn-primary" data-ai-onboard-save-key${state.onboardingBusy ? " disabled" : ""}>${state.onboardingBusy ? "Checking…" : "Save key"}</button></div></div>` : "";
   const message = state.onboardingError || apiKeyMessage(settings);
-  return `<div class="onboarding-card ai-onboarding" role="dialog" aria-modal="true" aria-labelledby="ai-onboarding-title"><div><h2 id="ai-onboarding-title">AI features</h2><p class="sub">Choose your speech engine and optional improvements.</p></div>${sttCardsHtml(settings.sttEngine)}${improvementSwitches(settings, "onboard-", true)}${keyField}${message ? `<p class="api-key-status" role="status">${esc(message)}</p>` : ""}${apiKeyRetry(settings)}<div class="onboarding-actions"><button type="button" class="btn-primary" data-ai-onboard-continue${state.onboardingBusy || (settings.sttEngine === "openai" && !ready) ? " disabled" : ""}>Continue</button></div></div>`;
+  const hint = onboardingEngineReady(settings) ? "" : settings.sttEngine === "openai" ? "Save a working API key to continue." : "Download the model with the blue button to continue.";
+  return `<div class="onboarding-card ai-onboarding" role="dialog" aria-modal="true" aria-labelledby="ai-onboarding-title"><div><h2 id="ai-onboarding-title">AI features</h2><p class="sub">Download the free offline model, or choose gpt-transcribe with your OpenAI API key.</p></div>${sttCardsHtml(settings.sttEngine)}${improvementSwitches(settings, "onboard-", true)}${keyField}${message ? `<p class="api-key-status" role="status">${esc(message)}</p>` : ""}${apiKeyRetry(settings)}<div class="onboarding-actions">${hint ? `<span class="onboarding-hint">${hint}</span>` : ""}<button type="button" class="btn-primary" data-ai-onboard-continue${state.onboardingBusy || !onboardingEngineReady(settings) ? " disabled" : ""}>Continue</button></div></div>`;
 }
 
 async function saveOnboardingKey() {
@@ -1072,7 +1074,10 @@ async function saveOnboardingKey() {
   state.onboardingError = "";
   paintOnboarding();
   try {
-    const result = await window.openflow.dispatch("settings.save", { apiKey: value });
+    // First setup: improvements stay off until the user turns them on here.
+    const firstSetup = !state.desk?.settings?.onboardingDone;
+    const patch = firstSetup ? { apiKey: value, noteImproveEnabled: false, dictationCleanupEnabled: false } : { apiKey: value };
+    const result = await window.openflow.dispatch("settings.save", patch);
     if (result.settings.hasWorkingKey) {
       state.onboardingKey = "";
     }
@@ -1943,16 +1948,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.querySelector("#onboarding").addEventListener("click", async (event) => {
     if (event.target.closest("[data-api-key-retry]")) { await retryApiKey(); return; }
-    const choose = event.target.closest("[data-setup-choice]");
-    if (choose && !state.onboardingBusy) {
-      state.onboardingBusy = true;
-      const engine = choose.dataset.setupChoice;
+    if (state.onboardingBusy) return;
+    const modelDownload = event.target.closest("[data-parakeet-download]");
+    if (modelDownload) {
+      // Downloading the offline model is the explicit choice of Parakeet.
+      if (modelDownload.disabled) return;
+      modelDownload.disabled = true;
       try {
-        await window.openflow.dispatch("settings.save", { sttEngine: engine, onboardingDone: true, noteImproveEnabled: false, dictationCleanupEnabled: false });
-        if (engine === "parakeet" && !state.desk.settings.parakeet?.installed) await window.openflow.dispatch("parakeet.download");
-        state.view = "settings";
-        state.onboardingStep = "ai-features";
-      } finally { state.onboardingBusy = false; await load(); }
+        await window.openflow.dispatch("settings.save", { sttEngine: "parakeet" });
+        await window.openflow.dispatch("parakeet.download");
+      } finally { await load(); }
+      return;
+    }
+    const sttInfo = event.target.closest("[data-stt-info]");
+    if (sttInfo) {
+      if (sttInfo.dataset.sttInfo === "parakeet") state.sttInfoParakeet = !state.sttInfoParakeet;
+      else state.sttInfoOpenai = !state.sttInfoOpenai;
+      paintOnboarding();
+      return;
+    }
+    const sttSelect = event.target.closest("[data-stt-select]");
+    if (sttSelect) {
+      const engine = sttSelect.dataset.sttSelect === "openai" ? "openai" : "parakeet";
+      await window.openflow.dispatch("settings.save", { sttEngine: engine });
+      await load();
+      if (engine === "openai") document.querySelector("#ai-onboard-key")?.focus();
       return;
     }
     const settings = (state.desk && state.desk.settings) || {};
@@ -1970,8 +1990,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (event.target.closest("[data-ai-onboard-save-key]")) { await saveOnboardingKey(); return; }
     if (event.target.closest("[data-ai-onboard-continue]")) {
-      if (state.onboardingBusy) return;
-      await window.openflow.dispatch("settings.save", { aiFeaturesOnboardingDone: true, noteImproveOnboardingDone: true, noteImproveOnboardingRelease: NOTE_IMPROVE_ONBOARDING_RELEASE });
+      if (!onboardingEngineReady(settings)) return;
+      await window.openflow.dispatch("settings.save", { onboardingDone: true, aiFeaturesOnboardingDone: true, noteImproveOnboardingDone: true, noteImproveOnboardingRelease: NOTE_IMPROVE_ONBOARDING_RELEASE });
+      if (settings.sttEngine !== "openai") state.view = "settings";
       state.onboardingStep = null;
       state.onboardingKey = "";
       state.onboardingError = "";
@@ -1990,6 +2011,10 @@ document.addEventListener("DOMContentLoaded", () => {
       event.preventDefault();
       document.querySelector("[data-ai-onboard-save-key]")?.click();
       return;
+    }
+    if ((event.key === "Enter" || event.key === " ") && event.target.matches(".engine-option")) {
+      event.preventDefault();
+      event.target.click();
     }
 
   });

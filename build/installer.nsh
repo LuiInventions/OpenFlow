@@ -17,14 +17,16 @@
   Sleep 300
 !macroend
 
+# No finish page: its full-window layout looked like the installer starting over
+# and required another click before OpenFlow opened. Instead the installer closes
+# itself after a successful install and opens OpenFlow directly.
 !macro customFinishPage
-  Function StartApp
-    ${StdUtils.ExecShellAsUser} $0 "$launchLink" "open" "--installed"
-  FunctionEnd
+!macroend
 
-  !define MUI_FINISHPAGE_RUN
-  !define MUI_FINISHPAGE_RUN_CHECKED
-  !define MUI_FINISHPAGE_RUN_TEXT "Open OpenFlow"
-  !define MUI_FINISHPAGE_RUN_FUNCTION "StartApp"
-  !insertmacro MUI_PAGE_FINISH
+!macro customInstall
+  ${IfNot} ${Silent}
+    SetAutoClose true
+    HideWindow
+    ${StdUtils.ExecShellAsUser} $0 "$launchLink" "open" "--installed"
+  ${EndIf}
 !macroend
