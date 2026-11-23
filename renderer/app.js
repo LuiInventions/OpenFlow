@@ -632,7 +632,7 @@ function parakeetDownloadButton(model) {
   if (model.installed) return "";
   const busy = Boolean(model.downloading);
   const label = busy ? "Downloading Parakeet model" : "Download Parakeet v3 model";
-  return `<button type="button" class="engine-download-btn${busy ? " is-downloading" : ""}" data-parakeet-download title="${label}" aria-label="${label}"${busy ? " disabled" : ""}><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v6m-3-3 3 3 3-3M2 9v2h8V9"/></svg></button>`;
+  return `<button type="button" class="engine-download-btn${busy ? " is-downloading" : ""}" data-parakeet-download title="${label}" aria-label="${label}"${busy ? " disabled" : ""}><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v6m-3-3 3 3 3-3M2 9v2h8V9"/></svg><span data-download-label>${busy ? "Downloading" : "Download"}</span></button>`;
 }
 
 // Blue check on the engine that is currently selected for dictation.
@@ -667,7 +667,8 @@ function engineMetricsHtml(rows) {
 // downloads the model after confirmation.
 function parakeetCardHtml(sttEngine, onboarding = false) {
   const model = state.desk?.settings?.parakeet || {};
-  const isChecked = sttEngine === "parakeet";
+  // Parakeet only counts as chosen once its model is downloaded or downloading.
+  const isChecked = sttEngine === "parakeet" && Boolean(model.installed || model.downloading);
   const isPinned = Boolean(state.sttInfoParakeet);
   const controls = active => `<div class="engine-actions">${onboarding ? parakeetDownloadButton(model) : ""}${selectedCheckHtml(isChecked)}<button type="button" class="engine-info-btn${active ? " active" : ""}" data-stt-info="parakeet" title="${active ? "Close details" : "Model details"}" aria-label="${active ? "Close details" : "Model details"}">${sttInfoIcon(active)}</button></div>`;
   return `<div role="radio" tabindex="0" class="engine-option${isPinned ? " is-pinned" : ""}" data-stt-select="parakeet" aria-checked="${isChecked ? "true" : "false"}"><div class="engine-normal-view"><div class="engine-head"><strong>Parakeet v3 <span class="engine-subtitle">(Open-Source)</span></strong>${controls(false)}</div><p>${model.installed ? "Free, private dictation on your PC." : "Free offline dictation. Download the model to get started."}</p></div><div class="engine-info-view"><div class="engine-info-head"><div class="engine-info-meta"><strong class="engine-info-title">Parakeet v3</strong><span class="engine-info-tagline">On your CPU · 640 MB</span></div>${controls(true)}</div>${engineMetricsHtml([["Accuracy", "94%", 94], ["Speed (CPU)", `${PARAKEET_CPU_SPEED}×`, speedBarPercent(PARAKEET_CPU_SPEED)]])}</div>${modelProgressHtml(model, onboarding)}</div>`;
@@ -686,6 +687,8 @@ function paintModelProgress(model) {
     card.querySelectorAll('[data-parakeet-download]').forEach(button => {
       button.disabled = Boolean(model.downloading);
       button.classList.toggle('is-downloading', Boolean(model.downloading));
+      const text = button.querySelector('[data-download-label]');
+      if (text) text.textContent = model.downloading ? 'Downloading' : 'Download';
     });
     const progress = card.querySelector('[data-model-progress]');
     if (progress) progress.outerHTML = modelProgressHtml(model, Boolean(card.closest("#onboarding")));

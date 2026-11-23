@@ -48,11 +48,28 @@ function rms(samples) {
   return Math.sqrt(sum / count);
 }
 
+// Below this, even the loudest moments are only hiss or a muted microphone.
+const VOICE_FLOOR_RMS = 0.0004;
+
 function audible(samples, sampleRate) {
   const input = asFloat32(samples);
   const rate = Number(sampleRate) || OUTPUT_RATE;
   if (input.length < rate * MIN_AUDIBLE_SECONDS) return false;
-  return rms(input) >= SILENCE_RMS;
+  if (rms(input) >= SILENCE_RMS) return true;
+  // Quiet microphones (common on laptops): speech still shows as loud 30 ms windows
+  // over a quieter floor between syllables, while steady fan noise stays flat.
+  const size = Math.max(1, Math.floor(rate * 0.03));
+  const levels = [];
+  for (let start = 0; start + size <= input.length; start += size) {
+    let sum = 0;
+    for (let index = start; index < start + size; index += 2) sum += input[index] * input[index];
+    levels.push(Math.sqrt(sum / Math.ceil(size / 2)));
+  }
+  if (!levels.length) return false;
+  levels.sort((a, b) => a - b);
+  const floor = levels[Math.floor(levels.length * 0.2)];
+  const peak = levels[Math.min(levels.length - 1, Math.floor(levels.length * 0.95))];
+  return peak >= VOICE_FLOOR_RMS && peak >= floor * 3;
 }
 
 function quietCut(samples, start, end, sampleRate) {

@@ -37,6 +37,23 @@ test("silence is not sent and a real voice is", () => {
   assert.equal(audio.audible(voice.subarray(0, 100), 16000), false);
 });
 
+test("quiet laptop speech counts as audible, steady noise does not", () => {
+  // Syllables at RMS ~0.002 with pauses at ~0.0002: overall RMS stays below 0.003.
+  const rate = 16000;
+  const quiet = new Float32Array(rate * 2);
+  for (let index = 0; index < quiet.length; index += 1) {
+    const syllable = Math.floor(index / (rate * 0.18)) % 2 === 0;
+    quiet[index] = Math.sin(index * 0.07) * (syllable ? 0.0028 : 0.0003);
+  }
+  assert.equal(audio.audible(quiet, rate), true);
+  const fan = new Float32Array(rate * 2);
+  for (let index = 0; index < fan.length; index += 1) fan[index] = Math.sin(index * 0.9) * 0.0015 * (1 + 0.1 * Math.sin(index * 0.001));
+  assert.equal(audio.audible(fan, rate), false, "steady fan noise");
+  const hiss = new Float32Array(rate * 2);
+  for (let index = 0; index < hiss.length; index += 1) hiss[index] = (index % 2 ? 1 : -1) * 0.00005;
+  assert.equal(audio.audible(hiss, rate), false, "muted microphone hiss");
+});
+
 test("resample and transcript joins keep order", () => {
   const down = audio.resample(Float32Array.of(0, 1), 8000, 16000);
   assert.equal(down.length, 4);

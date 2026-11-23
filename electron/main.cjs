@@ -631,6 +631,8 @@ function beginModelDownload() {
   };
   if (!parakeet.getStatus(userData).downloading) {
     parakeet.ensureModelFiles(userData, deliver, { fetchImpl: apiFetch }).then(() => {
+      // A finished download selects the offline model.
+      if (store) store.updateSettings({ sttEngine: "parakeet" });
       syncSttEngine();
       refreshDesk();
     }).catch(() => { refreshDesk(); });
@@ -1435,6 +1437,8 @@ const actions = {
   },
   "settings.save": async (payload) => {
     const previousCleanupMode = store.getSettings().dictationCleanupMode;
+    const previousEngine = store.getSettings().sttEngine;
+    const keyWasReady = ensureApiKeyStatus().ready();
     if (payload && Object.prototype.hasOwnProperty.call(payload, "apiKey")) {
       if (dictationCleanup) dictationCleanup.cancel();
       writeKey(String(payload.apiKey || "").trim());
@@ -1503,6 +1507,16 @@ const actions = {
         && ensureApiKeyStatus().status().state !== "unavailable";
       if (keyChanged || Object.prototype.hasOwnProperty.call(patch, "noteImproveEnabled")) patch.noteImproveEnabled = false;
       if (keyChanged || Object.prototype.hasOwnProperty.call(patch, "dictationCleanupEnabled")) patch.dictationCleanupEnabled = false;
+    }
+    // Turning on gpt-transcribe with a working key (switching to it, or saving the key
+    // while it is selected) also turns on Improve Notes and Improve Dictation (Polish).
+    const engineAfter = patch.sttEngine || previousEngine;
+    const switchedToOpenai = patch.sttEngine === "openai" && previousEngine !== "openai";
+    const keyBecameReady = !keyWasReady && ensureApiKeyStatus().ready();
+    if (engineAfter === "openai" && ensureApiKeyStatus().ready() && (switchedToOpenai || keyBecameReady)) {
+      patch.noteImproveEnabled = true;
+      patch.dictationCleanupEnabled = true;
+      patch.dictationCleanupMode = "polished";
     }
     store.updateSettings(patch);
     if (!cleanupActive(store.getSettings()) || previousCleanupMode !== store.getSettings().dictationCleanupMode || !ensureApiKeyStatus().ready()) {

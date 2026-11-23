@@ -16,6 +16,14 @@ The compact dark-black floating bubble rests at the bottom of your screen. Hold 
 
 ---
 
+## New in 1.5.35
+
+- **Every dictation is transcribed and pasted:** quiet microphones (common on laptops) were sometimes treated as silence, so the loading animation was skipped and nothing was pasted. Speech is now recognised by its rhythm of syllables and pauses, not only by loudness.
+- **Fewer language mix-ups with Parakeet:** live voice notes are sent in longer pieces (2–6 s instead of about 1 s on quiet microphones), giving the offline model enough context to keep your language. Parakeet never translates, but on very short clips it can mistake the language.
+- **Setup screen:** no blue check until you choose an engine; the download button now reads **Download**; **Continue** is greyed out until it can be used.
+- **gpt-transcribe turns on improvements:** choosing gpt-transcribe with a working API key turns on Improve Notes and Improve Dictation with **Polish dictation** as the default.
+- **Parakeet is selected automatically** once its download finishes.
+
 ## New in 1.5.34
 
 - **Smoother first start:** the window appears first; the shortcut helper, the microphone check and the offline model now load one after another in the background instead of all at once. Dictating right away still works.
@@ -169,7 +177,7 @@ OpenFlow has **zero subscriptions or middleman fees**:
 
 Download the latest Windows installer from the [**Releases**](https://github.com/LuiInventions/OpenFlow/releases) page:
 
-- **`OpenFlow-Setup-1.5.34.exe`** — Lightweight Windows NSIS Web/Stub Installer (~1 MB download) with customizable install directory, Start Menu entry, and Desktop shortcut. Automatically fetches the application package from GitHub Releases during setup, opens OpenFlow, and opens the **AI features** setup, where you download the optional **Parakeet v3** model or choose gpt-transcribe with your API key. Existing models are reused; later model downloads show their progress in the Parakeet card. Notes use a narrow left rail to collapse, search, open another note, improve, and format. The rail icons line up with the first line of the note. Search in Notes shows every saved note, and long titles wrap instead of being cut off. Note improvement slides up under Copy and Save, and suggestions show a spinner while they generate. Includes Compact/Polish Dictation, verified-key onboarding, and combined Note & Dictation API usage.
+- **`OpenFlow-Setup-1.5.35.exe`** — Lightweight Windows NSIS Web/Stub Installer (~1 MB download) with customizable install directory, Start Menu entry, and Desktop shortcut. Automatically fetches the application package from GitHub Releases during setup, opens OpenFlow, and opens the **AI features** setup, where you download the optional **Parakeet v3** model or choose gpt-transcribe with your API key. Existing models are reused; later model downloads show their progress in the Parakeet card. Notes use a narrow left rail to collapse, search, open another note, improve, and format. The rail icons line up with the first line of the note. Search in Notes shows every saved note, and long titles wrap instead of being cut off. Note improvement slides up under Copy and Save, and suggestions show a spinner while they generate. Includes Compact/Polish Dictation, verified-key onboarding, and combined Note & Dictation API usage.
 
 Requirements: Windows 10 or Windows 11 (64-bit). An OpenAI API key is optional.
 
@@ -183,7 +191,7 @@ npm test
 npm run dist
 ```
 
-This builds the Windows NSIS Web Stub installer (`release/nsis-web/OpenFlow-Setup-1.5.34.exe`).
+This builds the Windows NSIS Web Stub installer (`release/nsis-web/OpenFlow-Setup-1.5.35.exe`).
 
 For a full installer containing the application package, built locally without publishing:
 
@@ -191,7 +199,7 @@ For a full installer containing the application package, built locally without p
 npm run dist:local
 ```
 
-Output: `release-local/OpenFlow-Setup-1.5.34-local.exe`. Speech-model downloads are separate; existing models on this PC are reused.
+Output: `release-local/OpenFlow-Setup-1.5.35-local.exe`. Speech-model downloads are separate; existing models on this PC are reused.
 
 ---
 

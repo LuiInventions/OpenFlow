@@ -591,13 +591,16 @@
       target.samples += copy.length;
       if (target.voice && target === activeBucket) {
         // Voice notes stream text live: cut a chunk at the next short pause (or a hard cap)
-        // so every phrase is transcribed while the user keeps talking.
+        // so every phrase is transcribed while the user keeps talking. Pauses are judged
+        // relative to the recent speech level, so quiet microphones are not cut every
+        // second; chunks of 2-6 s give Parakeet enough context to keep the language.
         let sum = 0;
         for (let index = 0; index < copy.length; index += 4) sum += copy[index] * copy[index];
         const rms = Math.sqrt(sum / Math.max(1, Math.ceil(copy.length / 4)));
-        target.quiet = rms < 0.012 ? (target.quiet || 0) + copy.length : 0;
+        target.loud = Math.max(rms, (target.loud || 0) * 0.995);
+        target.quiet = rms < Math.max(0.0006, target.loud * 0.2) ? (target.quiet || 0) + copy.length : 0;
         const rate = target.rate || 48000;
-        if ((target.samples >= rate * 0.9 && target.quiet >= rate * 0.28) || target.samples >= rate * 3.2) {
+        if ((target.samples >= rate * 2 && target.quiet >= rate * 0.28) || target.samples >= rate * 6) {
           target.quiet = 0;
           flushBucket(target);
         }
