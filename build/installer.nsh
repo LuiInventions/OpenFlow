@@ -24,9 +24,17 @@
 !macroend
 
 !macro customInstall
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "OpenFlow" '$\"$INSTDIR\${APP_EXECUTABLE_FILENAME}$\"'
   ${IfNot} ${Silent}
     SetAutoClose true
     HideWindow
     ${StdUtils.ExecShellAsUser} $0 "$launchLink" "open" "--installed"
+  ${EndIf}
+!macroend
+
+!macro customUnInstall
+  ReadRegStr $R0 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "OpenFlow"
+  ${If} $R0 == '$\"$INSTDIR\${APP_EXECUTABLE_FILENAME}$\"'
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "OpenFlow"
   ${EndIf}
 !macroend

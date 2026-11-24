@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, net: electronNet, safeStorage, screen, session, shell, Tray } = require("electron");
+const { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, nativeTheme, net: electronNet, safeStorage, screen, session, shell, Tray } = require("electron");
 const { spawn, execFile } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -1146,7 +1146,7 @@ function createWindows() {
     show: false,
     title: "OpenFlow",
     icon: path.join(root, "build", "icon.png"),
-    backgroundColor: "#faf9f7",
+    backgroundColor: store.getSettings().theme === "dark" ? "#181918" : "#faf9f7",
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -1466,6 +1466,7 @@ const actions = {
     if (payload && typeof payload.sounds === "boolean") {
       patch.sounds = payload.sounds;
     }
+    if (payload && ["light", "dark"].includes(payload.theme)) patch.theme = payload.theme;
     const validFloatingBubble = ["active", "dimmed", "hidden"];
     if (payload && validFloatingBubble.includes(payload.floatingBubble)) {
       patch.floatingBubble = payload.floatingBubble;
@@ -1523,6 +1524,11 @@ const actions = {
     }
     if (engineAfter !== "openai") patch.dictationCleanupEnabled = false;
     store.updateSettings(patch);
+    if (patch.theme) {
+      nativeTheme.themeSource = patch.theme;
+      mainWindow?.setBackgroundColor(patch.theme === "dark" ? "#181918" : "#faf9f7");
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send("theme-changed", { theme: patch.theme });
+    }
     if (!cleanupActive(store.getSettings()) || previousCleanupMode !== store.getSettings().dictationCleanupMode || !ensureApiKeyStatus().ready()) {
       if (dictationCleanup) dictationCleanup.cancel();
     }
@@ -1838,6 +1844,7 @@ if (!gotLock) {
       session.defaultSession.setDevicePermissionHandler((details) => details.deviceType === "microphone" || details.deviceType === "audio");
     }
     store = createStore(path.join(app.getPath("userData"), "openflow.json"));
+    nativeTheme.themeSource = store.getSettings().theme === "dark" ? "dark" : "light";
     skipOnboardingForExistingInstall();
     if (store.getSettings().sttEngine !== "openai" && store.getSettings().dictationCleanupEnabled) store.updateSettings({ dictationCleanupEnabled: false });
     ensureCommandsScripts();

@@ -36,8 +36,8 @@
     body { padding: 14px; }
     .card {
       height: 100%;
-      background: #f5f4f0;
-      border: 1px solid #eeebe3;
+      background: var(--sand-500, #f5f4f0);
+      border: 1px solid var(--line, #eeebe3);
       border-radius: 20px;
       box-shadow: 0 20px 50px rgba(26, 26, 26, 0.18), 0 4px 12px rgba(26, 26, 26, 0.08);
       overflow: hidden;
@@ -64,7 +64,7 @@
       transition: background-color .14s ease;
     }
     #title:hover, #title:focus {
-      background: #ffffff;
+      background: var(--pure-white, #ffffff);
     }
     #close {
       width: 26px;
@@ -198,6 +198,8 @@
       .note-spin { animation: none; }
     }
   </style>
+  <link rel="stylesheet" href="theme.css">
+  <script src="theme.js"></script>
 </head>
 <body>
   <div class="card note-shell">

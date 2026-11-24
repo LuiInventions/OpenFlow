@@ -10,23 +10,23 @@
     body { display: flex; align-items: flex-end; justify-content: center; }
     .stack { position: relative; display: grid; justify-items: center; align-items: end; gap: 4px; padding-bottom: 0; }
     .menu { box-sizing: border-box; width: 280px; background: #fcfcfb; color: #1a1a1a; border-radius: 16px; padding: 6px; border: 1px solid #eeebe3; box-shadow: none; }
-    .cleanup-menu { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: max-content; padding: 4px; border-radius: 10px; border-color: #e7e4dd; box-shadow: 0 4px 12px rgb(26 26 26 / .07); }
+    .cleanup-menu { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); width: max-content; padding: 3px; border-radius: 8px; border-color: #e7e4dd; box-shadow: 0 4px 12px rgb(26 26 26 / .07); }
     .cleanup-menu::after { content: ""; position: absolute; left: 0; right: 0; bottom: -10px; height: 10px; }
-    .cleanup-title { padding: 4px 6px 5px; color: #464544; font-size: 10px; font-weight: 700; line-height: 13px; }
-    .cleanup-menu .row { cursor: pointer; justify-content: flex-start; gap: 6px; padding: 5px 6px; border-radius: 7px; font-size: 11px; line-height: 14px; white-space: nowrap; }
-    .cleanup-menu .mark { display: grid; place-items: center; width: 12px; height: 12px; flex: 0 0 12px; opacity: 0; }
-    .cleanup-menu .mark svg { width: 12px; height: 12px; }
-    .cleanup-menu button[aria-checked="true"] .mark { width: 12px; height: 12px; margin: 0; border: 0; transform: none; opacity: 1; }
+    .cleanup-title { padding: 3px 5px; color: #464544; font-size: 9px; font-weight: 700; line-height: 11px; }
+    .cleanup-menu .row { cursor: pointer; justify-content: flex-start; gap: 5px; padding: 3px 5px; border-radius: 6px; font-size: 10px; line-height: 12px; white-space: nowrap; }
+    .cleanup-menu .mark { display: grid; place-items: center; width: 10px; height: 10px; flex: 0 0 10px; opacity: 0; }
+    .cleanup-menu .mark svg { width: 10px; height: 10px; }
+    .cleanup-menu button[aria-checked="true"] .mark { width: 10px; height: 10px; margin: 0; border: 0; transform: none; opacity: 1; }
     .cleanup-menu .row:hover, .cleanup-menu .row:focus-visible { background: #f0eee8; }
     .cleanup-menu .row:disabled { opacity: .42; cursor: default; }
     .cleanup-menu .row:focus-visible { outline: 1px solid #c5c0b3; outline-offset: -1px; }
-    .pill #cleanup-toggle { width: 30px; height: 30px; margin-right: -3px; margin-left: 0; border-radius: 999px; color: #bfbfbd; }
+    .pill #cleanup-toggle { width: 28px; height: 24px; margin-right: -3px; margin-left: 0; border-radius: 999px; color: #bfbfbd; }
     /* Divider centred in the 4px gap before the arrow: taller and clearer. */
-    .pill #cleanup-toggle::before { content: ""; position: absolute; left: -2.5px; top: 6px; bottom: 6px; width: 1px; border-radius: 1px; background: #5c5c5c; }
+    .pill #cleanup-toggle::before { content: ""; position: absolute; left: -2.5px; top: 4px; bottom: 4px; width: 1px; border-radius: 1px; background: #5c5c5c; }
     /* Hover/open: only a small circle around the arrow, like the other icons. */
     .pill #cleanup-toggle:hover, .pill #cleanup-toggle[aria-expanded="true"] { background: transparent; color: #fff; }
     .pill #cleanup-toggle::after { display: none; }
-    #cleanup-toggle svg { box-sizing: content-box; padding: 4px; border-radius: 50%; transform: none; transition: background-color .14s ease, stroke-width .16s ease; }
+    #cleanup-toggle svg { box-sizing: content-box; width: 15px; height: 15px; padding: 3px; border-radius: 50%; transform: none; transition: background-color .14s ease, stroke-width .16s ease; }
     #cleanup-toggle:hover svg, #cleanup-toggle[aria-expanded="true"] svg { background: #1f1f1f; stroke-width: 1.8; }
     #cleanup-toggle.is-cleaned { color: #fff; }
     .pill #cleanup-toggle:focus-visible { outline: 1px solid #bfbfbd; outline-offset: -3px; }
@@ -44,8 +44,9 @@
     #grip { width: 72px; height: 18px; padding: 0; border: 0; border-radius: 999px; background: transparent; position: relative; cursor: pointer; display: block; box-shadow: none; }
     #grip::before { content: ""; position: absolute; left: 0; right: 0; top: 6px; height: 7px; border-radius: 4px; background: #000; transition: background-color .18s ease; }
     #grip span { position: absolute; top: 9px; left: 18px; width: 36px; height: 2px; border-radius: 2px; background: #fff; display: block; }
-    .pill { position: relative; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 4px; width: auto; min-width: 44px; height: 36px; padding: 3px 6px; background: #000; color: #fff; border-radius: 999px; box-shadow: none; }
-    .pill button { position: relative; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: #fff; display: grid; place-items: center; cursor: pointer; transition: background-color .14s ease, transform .14s ease; }
+    .pill { position: relative; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 4px; width: auto; min-width: 40px; height: 30px; padding: 3px 6px; background: #000; color: #fff; border-radius: 999px; box-shadow: none; }
+    .pill button { position: relative; width: 28px; height: 24px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: #fff; display: grid; place-items: center; cursor: pointer; transition: background-color .14s ease, transform .14s ease; }
+    .pill button > svg { width: 17px; height: 17px; }
     .pill button:hover { background: #1f1f1f; }
     .pill button[aria-pressed="true"] { background: #1f1f1f; }
     .pill button::after {
@@ -73,13 +74,13 @@
       transform: translateX(-50%) translateY(0);
     }
     /* Voice note: a dark slider track that slides out to the left of the mic. */
-    .voice-group { position: relative; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .vtrack { position: absolute; z-index: 0; top: 0; right: 0; width: 30px; height: 30px; box-sizing: border-box; border-radius: 999px; background: #000000; border: none; opacity: 0; pointer-events: none; transition: width .22s cubic-bezier(.2,.8,.2,1), opacity .16s ease; }
-    .pill.voice-open .vtrack { width: 62px; opacity: 1; pointer-events: auto; }
+    .voice-group { position: relative; width: 28px; height: 24px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .vtrack { position: absolute; z-index: 0; top: 0; right: 0; width: 28px; height: 24px; box-sizing: border-box; border-radius: 999px; background: #000000; border: none; opacity: 0; pointer-events: none; transition: width .22s cubic-bezier(.2,.8,.2,1), opacity .16s ease; }
+    .pill.voice-open .vtrack { width: 60px; opacity: 1; pointer-events: auto; }
     #mic { position: relative; z-index: 1; }
     .pill.voice-open #mic { background: #1f1f1f; box-shadow: none; }
 
-    #vnote { position: absolute; z-index: 1; top: 0; left: -32px; width: 30px; height: 30px; border-radius: 999px; background: #000000; opacity: 0; pointer-events: none; transform: translateX(16px) scale(.7); transition: opacity .16s ease, transform .22s cubic-bezier(.2,.8,.2,1), background-color .14s ease; }
+    #vnote { position: absolute; z-index: 1; top: 0; left: -32px; width: 28px; height: 24px; border-radius: 999px; background: #000000; opacity: 0; pointer-events: none; transform: translateX(16px) scale(.7); transition: opacity .16s ease, transform .22s cubic-bezier(.2,.8,.2,1), background-color .14s ease; }
     .pill.voice-open #vnote { opacity: 1; pointer-events: auto; transform: translateX(0) scale(1); }
     #vnote:hover { background: #1f1f1f; }
     #vnote::after { left: -6px; transform: translateY(3px); }
@@ -130,6 +131,8 @@
     }
     svg { display: block; }
   </style>
+  <link rel="stylesheet" href="theme.css">
+  <script src="theme.js"></script>
 </head>
 <body data-mode="idle" data-near="false">
   <div class="stack">

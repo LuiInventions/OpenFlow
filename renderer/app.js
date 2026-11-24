@@ -727,6 +727,8 @@ function settingsHtml() {
     ? "Press the shortcut once to start recording, and press it a second time to finish."
     : "Keep the shortcut held down while speaking and release to finish dictation.";
   const dictationCard = `<div class="settings-card"><div class="section-label">Dictation</div><div class="shortcut-grid" role="radiogroup" aria-label="Dictation Shortcut">${shortcutHtml}</div><div class="mode-toggle-card"><div class="mode-toggle-copy"><strong>${modeTitle}</strong><span>${modeDesc}</span></div><div class="mode-slider-wrap"><span class="mode-slider-label${!isToggle ? " active" : ""}">Hold</span><button type="button" class="switch-btn" role="switch" data-dictation-mode-toggle aria-checked="${isToggle ? "true" : "false"}" aria-label="Toggle between Hold to Dictate and Press to Start/Stop"><span class="switch-thumb"></span></button><span class="mode-slider-label${isToggle ? " active" : ""}">Start / Stop</span></div></div>${soundCard}</div>`;
+  const dark = settings.theme === "dark";
+  const styleCard = `<div class="settings-card"><div class="section-label">Style</div><div class="mode-toggle-card"><div class="mode-toggle-copy"><strong>Light / Dark</strong><span>Choose a light or dark appearance.</span></div><div class="mode-slider-wrap"><span class="mode-slider-label${!dark ? " active" : ""}">Light</span><button type="button" class="switch-btn" role="switch" data-theme-toggle aria-checked="${dark ? "true" : "false"}" aria-label="Dark mode"><span class="switch-thumb"></span></button><span class="mode-slider-label${dark ? " active" : ""}">Dark</span></div></div></div>`;
   const hint = settings.hasKey ? "Saved locally (enter a new key to replace)" : "sk-... (optional with Parakeet v3)";
   const ask = (sttEngine === "openai" && !settings.hasKey)
     ? `<div class="prompt-banner">Please enter your OpenAI API key to use cloud speech recognition, or switch to Parakeet v3 (Local).</div>`
@@ -779,7 +781,7 @@ function settingsHtml() {
 
   const manageCard = `<div class="settings-card manage-elements-card"><div class="section-label">Manage Elements</div><div class="bubble-preview-wrap"><div class="bubble-preview-pill" id="bubble-preview-pill">${previewItemsHtml}</div></div>${removedShelfHtml}<div class="bubble-manage-actions"><button type="button" class="btn-secondary" id="bubble-reset">Reset to Default</button><button type="button" class="btn-primary" id="bubble-save">Save Changes</button></div></div>`;
 
-  return `${sttCard}${dictationCard}${bubbleCard}${manageCard}`;
+  return `${sttCard}${dictationCard}${styleCard}${bubbleCard}${manageCard}`;
 }
 
 function apiKeyMessage(settings) {
@@ -1540,6 +1542,15 @@ document.addEventListener("DOMContentLoaded", () => {
       const currentMode = (state.desk && state.desk.settings && state.desk.settings.dictationMode) || "hold";
       const nextMode = currentMode === "toggle" ? "hold" : "toggle";
       await window.openflow.dispatch("settings.save", { dictationMode: nextMode });
+      await load();
+      return;
+    }
+
+    const themeToggle = event.target.closest("[data-theme-toggle]");
+    if (themeToggle && window.openflow) {
+      themeToggle.disabled = true;
+      const settings = (state.desk && state.desk.settings) || {};
+      await window.openflow.dispatch("settings.save", { theme: settings.theme === "dark" ? "light" : "dark" });
       await load();
       return;
     }

@@ -34,6 +34,7 @@ function blank() {
       startInTray: true,
       openAtLogin: false,
       sounds: true,
+      theme: "light",
       tone: "clear",
       styleInstructions: "",
       tourIndex: 0,
