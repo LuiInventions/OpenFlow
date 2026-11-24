@@ -16,76 +16,13 @@ The compact dark-black floating bubble rests at the bottom of your screen. Hold 
 
 ---
 
+<!-- Keep only the latest release notes here; older releases belong in GitHub Releases. -->
 ## New in 1.5.37
 
 - **Compact floating bubble:** slightly smaller action icons, with a little more space above and below them. The expanded bubble is 30 px high and its icons are 17 px.
 - **Smaller Dictation settings:** the bubble's cleanup menu takes less space and follows the selected appearance.
 - **Light and dark appearance:** **Settings → Style**, directly below Dictation, has one **Light / Dark** switch matching the Dictation Sounds control. Your choice is saved and applies to the app, notes and history windows.
 - **Automatic startup:** installing OpenFlow adds it to Windows Startup apps. You can disable it there; uninstalling removes its startup entry.
-
-## New in 1.5.36
-
-- **Calmer default bubble:** new installs start without the microphone and voice-note button in the bubble. Add them anytime in **Settings → Manage Elements**; dictation by shortcut works as before.
-- **Improve Dictation is a gpt-transcribe feature:** selecting Parakeet turns it off and its switch cannot be used. Choosing gpt-transcribe with a working key turns it back on (Polish).
-- **Level meter on the very first recording:** right after installing, the bars no longer stand high and red without sound; a freshly opened microphone is no longer mistaken for speech.
-
-## New in 1.5.35
-
-- **Every dictation is transcribed and pasted:** quiet microphones (common on laptops) were sometimes treated as silence, so the loading animation was skipped and nothing was pasted. Speech is now recognised by its rhythm of syllables and pauses, not only by loudness.
-- **Fewer language mix-ups with Parakeet:** live voice notes are sent in longer pieces (2–6 s instead of about 1 s on quiet microphones), giving the offline model enough context to keep your language. Parakeet never translates, but on very short clips it can mistake the language.
-- **Setup screen:** no blue check until you choose an engine; the download button now reads **Download**; **Continue** is greyed out until it can be used.
-- **gpt-transcribe turns on improvements:** choosing gpt-transcribe with a working API key turns on Improve Notes and Improve Dictation with **Polish dictation** as the default.
-- **Parakeet is selected automatically** once its download finishes.
-
-## New in 1.5.34
-
-- **Smoother first start:** the window appears first; the shortcut helper, the microphone check and the offline model now load one after another in the background instead of all at once. Dictating right away still works.
-- **Setup only for new installs:** updating or reinstalling over existing OpenFlow data no longer shows the AI features setup again.
-- **Fixed window size:** the OpenFlow window keeps its standard size and can no longer be resized or maximized.
-- **Level meter for every microphone:** the bars while dictating adapt to your microphone, so quiet laptop microphones show clear feedback as soon as you speak.
-- **Parakeet download in Settings:** the blue download button now appears only during setup. In Settings, choose the Parakeet card and confirm **Download & switch**.
-- **Slimmer bubble:** the minimized bubble is flatter and stays centred in its usual place.
-
-## New in 1.5.33
-
-- **Own shortcut:** in **Settings → Dictation**, the fourth box replaces `Ctrl + Shift`. Click it, press two keys, and they become your dictation shortcut. One of them must be **Ctrl, Alt or Win**, so normal typing never triggers dictation. Click the box again to record a different shortcut; **Esc** cancels.
-- While recording, OpenFlow captures the keys itself, so Windows shortcuts such as `Win + K` do not open. Recording stops on its own after a few seconds of inactivity.
-- If you used `Ctrl + Shift` before, nothing changes: it is now your own shortcut, pre-filled with `Ctrl + Shift`.
-- Pressing Win or Alt first and then the second key no longer opens the Start menu or an app menu bar afterwards.
-
-## New in 1.5.32
-
-- **Settings → Dictation:** the **Hold / Start / Stop** switch is always dark, because it picks one of two modes rather than turning something on or off. The **Dictation Sounds** switch now lines up exactly below it.
-- **Parakeet details:** the info button on the Parakeet card now shows **Accuracy** and **Speed** bars, laid out like gpt-transcribe. Accuracy 94 % is derived from the 6.34 % average WER on the Open ASR Leaderboard. Speed 5× real time was measured with OpenFlow's own CPU settings on a 2015 dual-core laptop, so newer PCs are faster.
-- **Blue check = selected engine:** the blue check now marks the speech engine you selected (Parakeet or gpt-transcribe) instead of showing that the model is downloaded. The blue download button still appears while the Parakeet model is missing.
-- **Bubble:** hovering the **Dictation settings** arrow now highlights only a small circle around it, like the other icons, instead of the whole section. The divider before the arrow is taller and clearer.
-
-## New in 1.5.31
-
-- The "Please enter your OpenAI API key" notice in **Settings → AI features** only appears while no API key is saved. It no longer stays visible after you added your key during setup.
-- Clicking any button in Settings no longer scrolls to the API key field and selects it.
-
-## New in 1.5.30
-
-- First launch now opens directly in **AI features**: download the free Parakeet v3 model with the blue button, or choose gpt-transcribe and save your API key. The separate "How would you like to start?" screen is gone.
-- The speech-engine cards in the setup screen are clickable, and **Continue** unlocks once the model download has started or a working API key is saved. The download keeps running in the background.
-- The setup screen fits the default window size without a scrollbar.
-- The installer no longer ends on a separate finish page that looked like setup starting over. After the download and installation it closes and opens OpenFlow directly.
-
-## New in 1.5.29
-
-- On first launch, choose whether to download the offline model or start with an API key. No model is downloaded automatically before you choose.
-- Download Parakeet later from the blue button beside its info button in **Settings → AI features**. Progress and reconnecting status appear at the bottom of the card; cloud dictation can stay selected during the download.
-- Interrupted model transfers resume from their saved partial files. The installer retries interrupted application-package downloads within the same setup process.
-- New model downloads use a pinned upstream revision and SHA-256 verification. Complete models from earlier OpenFlow installations remain usable.
-- The duplicate engine-selection onboarding screen and blocking model-installer window have been removed. Speech-engine selection remains available in AI features.
-
-## New in 1.5.28
-
-- **Dictation Sounds** in Settings: turn dictation sound cues on or off, directly below the shortcut mode switch. Your choice is saved and applies immediately.
-- Fixed the Windows main-process error caused by a missing temporary PowerShell script when starting the dictation shortcut helper.
-- Removed the unused local text-model runtime and its old interface. The installed application is about **64% smaller** and the full installer about **73% smaller** than 1.5.27.
-- **Offline Parakeet dictation, OpenAI improvements, Flameshot screenshots, Commands, notes, history, and existing user data are retained.** Speech models already on your PC are reused.
 
 ## Floating Bubble & Symbols
 
