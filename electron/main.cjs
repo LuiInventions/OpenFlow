@@ -1146,7 +1146,7 @@ function createWindows() {
     show: false,
     title: "OpenFlow",
     icon: path.join(root, "build", "icon.png"),
-    backgroundColor: store.getSettings().theme === "dark" ? "#181918" : "#faf9f7",
+    backgroundColor: store.getSettings().theme === "light" ? "#faf9f7" : "#181918",
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -1844,7 +1844,7 @@ if (!gotLock) {
       session.defaultSession.setDevicePermissionHandler((details) => details.deviceType === "microphone" || details.deviceType === "audio");
     }
     store = createStore(path.join(app.getPath("userData"), "openflow.json"));
-    nativeTheme.themeSource = store.getSettings().theme === "dark" ? "dark" : "light";
+    nativeTheme.themeSource = store.getSettings().theme === "light" ? "light" : "dark";
     skipOnboardingForExistingInstall();
     if (store.getSettings().sttEngine !== "openai" && store.getSettings().dictationCleanupEnabled) store.updateSettings({ dictationCleanupEnabled: false });
     ensureCommandsScripts();

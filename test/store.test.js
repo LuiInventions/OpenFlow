@@ -12,6 +12,7 @@ test("background settings default to a resident desk", () => {
   const settings = store.getSettings();
   assert.equal(settings.startInTray, true);
   assert.equal(settings.sounds, true);
+  assert.equal(settings.theme, "dark");
   assert.equal(settings.openAtLogin, false);
   assert.equal(settings.showHotkey, "CommandOrControl+Alt+O");
   assert.equal(settings.floatingBubble, "active");
@@ -36,6 +37,19 @@ test("dictionary, history, and notes round-trip in memory", () => {
   assert.equal(store.listNotes()[0].pinned, true);
   store.deleteNote(note.id);
   assert.equal(store.listNotes().length, 0);
+});
+
+test("old profiles without a theme default to dark and a chosen light theme survives reload", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openflow-theme-"));
+  const file = path.join(dir, "profile.json");
+  fs.writeFileSync(file, JSON.stringify({ settings: { sounds: false } }));
+  const store = createStore(file);
+  assert.equal(store.getSettings().theme, "dark");
+  assert.equal(store.getSettings().sounds, false);
+  store.updateSettings({ theme: "light" });
+  assert.equal(createStore(file).getSettings().theme, "light");
+  store.updateSettings({ theme: "dark" });
+  assert.equal(createStore(file).getSettings().theme, "dark");
 });
 
 test("folders, meetings, and file reload keep local data", () => {

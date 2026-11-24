@@ -89,9 +89,12 @@
     const saved = sel && sel.rangeCount && (view === sel.anchorNode || view.contains(sel.anchorNode))
       ? sel.getRangeAt(0).cloneRange()
       : null;
-    if (view.focus) view.focus({ preventScroll: true });
+    // Resetting even the same caret clears Chromium's pending typing format.
+    // Keep the live selection when toolbar clicks have left the editor focused.
+    const restore = !saved || document.activeElement !== view;
+    if (document.activeElement !== view && view.focus) view.focus({ preventScroll: true });
     const next = window.getSelection && window.getSelection();
-    if (next) {
+    if (next && restore) {
       next.removeAllRanges();
       if (saved) next.addRange(saved);
       else {
@@ -246,7 +249,7 @@
     }
 
     function onMouseDown(event) {
-      if (event.target.closest && event.target.closest("[data-format]")) event.preventDefault();
+      if (event.target.closest && event.target.closest("[data-format], [data-format-toggle]")) event.preventDefault();
     }
     let formatOpen = false;
 
@@ -266,9 +269,11 @@
       };
       try {
         if (document.queryCommandState) {
-          marks.bold = marks.bold || document.queryCommandState("bold");
-          marks.italic = marks.italic || document.queryCommandState("italic");
-          marks.underline = marks.underline || document.queryCommandState("underline");
+          // The caret can still be inside a formatted node after its typing
+          // style was switched off. The browser's command state is authoritative.
+          marks.bold = document.queryCommandState("bold");
+          marks.italic = document.queryCommandState("italic");
+          marks.underline = document.queryCommandState("underline");
         }
       } catch (_error) {
         return marks;

@@ -34,7 +34,7 @@ function blank() {
       startInTray: true,
       openAtLogin: false,
       sounds: true,
-      theme: "light",
+      theme: "dark",
       tone: "clear",
       styleInstructions: "",
       tourIndex: 0,
@@ -89,6 +89,7 @@ function createStore(filePath) {
   }
 
   function normalizeCleanup() {
+    data.settings.theme = data.settings.theme === "light" ? "light" : "dark";
     data.settings.noteImproveProvider = "openai";
     data.settings.noteImproveModel = normalizeOpenAIModel(data.settings.noteImproveModel);
     data.settings.dictationCleanupEnabled = data.settings.dictationCleanupEnabled === true;

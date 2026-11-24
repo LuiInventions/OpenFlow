@@ -60,3 +60,6 @@
 :root[data-theme="dark"] .cleanup-title { color: var(--vast-800); }
 :root[data-theme="dark"] .cleanup-menu .row:hover,
 :root[data-theme="dark"] .cleanup-menu .row:focus-visible { background: var(--line); }
+:root[data-theme="dark"] .format-bar { background: #000; box-shadow: 0 10px 28px rgb(0 0 0 / .3); }
+:root[data-theme="dark"] .format-bar button.is-on { background: #383b37; }
+:root[data-theme="dark"] .format-bar button.is-on:hover { background: #4b4f47; }

@@ -2,11 +2,11 @@
 
 (() => {
   function apply(theme) {
-    const value = theme === "dark" ? "dark" : "light";
+    const value = theme === "light" ? "light" : "dark";
     document.documentElement.dataset.theme = value;
     try { localStorage.setItem("openflow-theme", value); } catch (_) {}
   }
-  try { apply(localStorage.getItem("openflow-theme")); } catch (_) { apply("light"); }
+  try { apply(localStorage.getItem("openflow-theme")); } catch (_) { apply("dark"); }
   if (window.openflow) {
     // Subscribe before reading, so a late initial response cannot undo a new choice.
     let changed = false;
