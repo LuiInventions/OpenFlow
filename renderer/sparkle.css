@@ -500,45 +500,32 @@
   z-index: 5;
   display: grid;
   place-items: center;
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(26, 26, 26, 0.24);
   backdrop-filter: blur(7px);
   -webkit-backdrop-filter: blur(7px);
 }
 
-.note-fog-btn {
+.note-fog-star {
   pointer-events: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border-radius: 999px;
-  padding: 10px 16px;
-  background: var(--pure-white, #ffffff);
-  color: var(--fg, var(--vast-950));
-  border: 1px solid var(--line, var(--sand-600));
-  box-shadow: 0 10px 28px rgba(26, 26, 26, 0.1);
-  font-size: 13.5px;
-  font-weight: 650;
-  line-height: 1.2;
-  animation: note-fog-float 1.6s ease-in-out infinite;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: #fff;
+  animation: note-fog-float 3.2s ease-in-out infinite;
 }
 
-.note-fog-btn .sparkle-icon {
-  width: 16px;
-  height: 16px;
-  color: var(--sparkle);
-  animation: sparkle-shimmer 1.1s ease-in-out infinite;
+.note-fog-star .sparkle-icon {
+  display: block;
+  width: 44px;
+  height: 44px;
+  color: #fff;
+  stroke-width: 1.5;
 }
 
 @keyframes note-fog-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
-}
-
-#editor-body.is-shimmer,
-#body.is-shimmer {
-  background: linear-gradient(100deg, var(--surface, #ffffff) 30%, var(--sand-500) 50%, var(--surface, #ffffff) 70%);
-  background-size: 220% 100%;
-  animation: note-shimmer 1.2s linear infinite;
+  0%, 100% { transform: translate(0, 0) rotate(-3deg); }
+  50% { transform: translate(1px, -7px) rotate(3deg); }
 }
 
 .note-improve-card {
@@ -676,8 +663,8 @@
   .sparkle-spin,
   #editor-body.is-shimmer,
   #body.is-shimmer,
-  .note-fog-btn,
-  .note-fog-btn .sparkle-icon,
+  .note-fog-star,
+  .note-fog-star .sparkle-icon,
   .sparkle-dock,
   .sparkle-dock .sparkle-panel,
   #editor .sparkle-dock .sparkle-panel,

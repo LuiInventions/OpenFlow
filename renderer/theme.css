@@ -1,3 +1,30 @@
+/* Original pre-theme Light palette from 1.5.36, shared by every window. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --sand-50: #fcfcfb;
+  --sand-100: #faf9f7;
+  --sand-500: #f5f4f0;
+  --sand-600: #eeebe3;
+  --sand-700: #c5c0b3;
+  --vast-500: #878683;
+  --vast-600: #71716e;
+  --vast-800: #464544;
+  --vast-900: #30302f;
+  --vast-950: #1a1a1a;
+  --pure-white: #ffffff;
+  --green-50: #ecfdf5;
+  --green-600: #059669;
+  --dawn-100: #fcf7ff;
+  --dawn-600: #d2ace9;
+  --bg: var(--sand-50);
+  --surface: var(--pure-white);
+  --soft: var(--sand-500);
+  --line: var(--sand-600);
+  --fg: var(--vast-950);
+  --muted: var(--vast-600);
+  --sparkle: #6d4cb8;
+}
+
 :root[data-theme="dark"] {
   color-scheme: dark;
   --sand-50: #181918;

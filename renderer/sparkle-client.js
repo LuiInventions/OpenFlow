@@ -272,9 +272,10 @@
     const text = String(textarea.value || "");
     const shimmer = textarea.classList.contains("is-shimmer");
     const focused = view === document.activeElement || view.contains(document.activeElement);
-    view.hidden = shimmer;
+    view.hidden = false;
     if (!shimmer) view.innerHTML = text.trim() ? renderMarkdown(text) : "";
     prepareRich(view, !shimmer);
+    view.inert = shimmer;
     if (textarea.parentElement) textarea.parentElement.classList.toggle("is-empty", !text);
     if (focused && mode === "end") {
       view.focus({ preventScroll: true });
@@ -335,7 +336,9 @@
     const fog = document.createElement("div");
     fog.className = "note-fog";
     fog.hidden = true;
-    fog.innerHTML = `<button type="button" class="note-fog-btn" tabindex="-1" disabled><span class="sparkle-glyph">${ICON}</span><span>Improving</span></button>`;
+    fog.setAttribute("role", "status");
+    fog.setAttribute("aria-label", "Improving note");
+    fog.innerHTML = `<span class="note-fog-star" aria-hidden="true">${ICON}</span>`;
     textarea.insertAdjacentElement("afterend", markdown);
     textarea.insertAdjacentElement("afterend", fog);
 
@@ -399,7 +402,9 @@
       button.classList.toggle("is-busy", busy);
       textarea.classList.toggle("is-shimmer", busy);
       fog.hidden = !busy;
-      if (busy) markdown.hidden = true;
+      markdown.hidden = false;
+      prepareRich(markdown, !busy);
+      markdown.inert = busy;
       input.disabled = busy;
       chips.querySelectorAll("button").forEach((chip) => { chip.disabled = busy; });
       paintCount();
