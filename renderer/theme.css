@@ -55,6 +55,7 @@
 }
 
 :root[data-theme="dark"] nav button:hover { background: rgb(255 255 255 / .05); }
+:root[data-theme="dark"] .engine-multilingual { color: #8ac6b9; }
 :root[data-theme="dark"] kbd { box-shadow: 0 2px 0 var(--line); }
 :root[data-theme="dark"] .notes-fab,
 :root[data-theme="dark"] .usage-menu-list button[aria-selected="true"] { color: var(--bg); }

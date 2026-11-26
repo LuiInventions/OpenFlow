@@ -896,7 +896,7 @@ h1 {
   flex-direction: column;
   justify-content: flex-start;
   gap: 6px;
-  height: 98px;
+  height: 112px;
   box-sizing: border-box;
   transition: border-color .14s ease, background-color .14s ease, box-shadow .14s ease;
   cursor: pointer;
@@ -916,6 +916,40 @@ h1 {
 
 .engine-info-view {
   display: none;
+}
+
+.engine-normal-view {
+  gap: 4px;
+}
+
+.engine-multilingual {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 5px;
+  margin-top: auto;
+  color: #28786f;
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.engine-multilingual svg {
+  display: block;
+  flex: 0 0 auto;
+  /* Centre the globe on the visible glyphs rather than the font's line box. */
+  transform: translateY(0.5px);
+}
+
+.engine-multilingual-label {
+  display: block;
+  line-height: 1;
+}
+
+@media (max-width: 720px) {
+  .engine-option { height: 130px; }
 }
 
 .engine-option:has(.engine-info-btn:hover) .engine-normal-view,

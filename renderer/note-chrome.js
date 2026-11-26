@@ -242,6 +242,19 @@
       textarea.setAttribute("autocapitalize", "off");
     }
 
+    // Keep the last line scrollable above the floating controls without
+    // reducing the editor's visible or clickable area around them.
+    const foot = main && main.querySelector(".note-foot");
+    const sparkleDock = main && main.querySelector("[data-sparkle-dock]");
+    const controlsObserver = main && foot ? new ResizeObserver(() => {
+      const height = main.getBoundingClientRect().bottom - foot.getBoundingClientRect().top;
+      main.style.setProperty("--note-floating-space", `${Math.ceil(height)}px`);
+    }) : null;
+    if (controlsObserver) {
+      controlsObserver.observe(foot);
+      if (sparkleDock) controlsObserver.observe(sparkleDock);
+    }
+
     function onFocusIn(event) {
       const write = textarea && textarea.parentElement;
       if (!write || !event.target || !event.target.closest) return;
@@ -411,6 +424,7 @@
       },
       refresh,
       destroy() {
+        if (controlsObserver) controlsObserver.disconnect();
         shell.removeEventListener("click", onClick);
         document.removeEventListener("selectionchange", onSelection);
         shell.removeEventListener("mousedown", onMouseDown);
