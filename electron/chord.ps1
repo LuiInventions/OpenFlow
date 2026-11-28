@@ -520,6 +520,66 @@ public static class OpenFlowChord {
     return name.ToString();
   }
 
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+  private static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string className, string title);
+  [DllImport("user32.dll", SetLastError = true)]
+  private static extern bool PostThreadMessage(uint thread, uint message, IntPtr wParam, IntPtr lParam);
+
+  // Flameshot 14's GlobalShortcutFilter handles this message on its Qt main
+  // thread. Address only our bundled daemon, never inject a global keystroke.
+  private static string screenshotExe = "";
+  private static Process screenshotProcess;
+  private static uint screenshotThread;
+
+  private static bool SameScreenshotBinary(string left, string right) {
+    if (string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), StringComparison.OrdinalIgnoreCase)) return true;
+    using (var hash = System.Security.Cryptography.SHA256.Create())
+    using (var a = File.OpenRead(left))
+    using (var b = File.OpenRead(right)) {
+      return Convert.ToBase64String(hash.ComputeHash(a)) == Convert.ToBase64String(hash.ComputeHash(b));
+    }
+  }
+
+  private static bool FindScreenshotThread(int pid, string executable) {
+    Process[] candidates = Process.GetProcessesByName("flameshot");
+    foreach (Process target in candidates) {
+      try {
+        if (target.HasExited || target.SessionId != Process.GetCurrentProcess().SessionId ||
+            !SameScreenshotBinary(target.MainModule.FileName, executable)) continue;
+        uint mainThread = 0;
+        DateTime first = DateTime.MaxValue;
+        foreach (ProcessThread candidate in target.Threads) {
+          if (candidate.StartTime < first) { first = candidate.StartTime; mainThread = (uint)candidate.Id; }
+        }
+        IntPtr window = IntPtr.Zero;
+        while ((window = FindWindowEx(new IntPtr(-3), window, null, null)) != IntPtr.Zero) {
+          uint owner;
+          uint thread = GetWindowThreadProcessId(window, out owner);
+          if (owner == (uint)target.Id && thread == mainThread && ClassName(window).StartsWith("QEventDispatcherWin32_Internal_")) {
+            screenshotProcess = target;
+            screenshotThread = thread;
+            screenshotExe = executable;
+            return true;
+          }
+        }
+      } catch { }
+    }
+    return false;
+  }
+
+  public static bool TryScreenshot(int pid, string executable) {
+    try {
+      // Flameshot is a per-session singleton, so an identical bundled copy from
+      // an earlier OpenFlow process can already own the daemon. Verify its bytes
+      // once, cache its Qt thread, and avoid launching another Qt process.
+      if (screenshotProcess == null || screenshotProcess.HasExited || screenshotExe != executable) {
+        if (!FindScreenshotThread(pid, executable)) return false;
+      }
+      return PostThreadMessage(screenshotThread, 0x0312, new IntPtr(1), new IntPtr(0x002C0000));
+    } catch { screenshotProcess = null; }
+    return false;
+  }
+
   private static void WatchPipe() {
     string name = Environment.GetEnvironmentVariable("OPENFLOW_PIPE");
     if (string.IsNullOrWhiteSpace(name)) name = "OpenFlowPaste";
@@ -536,6 +596,12 @@ public static class OpenFlowChord {
         if (line != null && line.Trim().StartsWith("chord ")) {
           SetChordMode(line.Trim().Substring(6));
           ok = true;
+        } else if (line != null && line.Trim().StartsWith("shot ")) {
+          string[] parts = line.Trim().Substring(5).Split(new char[] { ' ' }, 2);
+          int pid;
+          if (parts.Length == 2 && int.TryParse(parts[0], out pid)) {
+            try { ok = TryScreenshot(pid, Encoding.UTF8.GetString(Convert.FromBase64String(parts[1]))); } catch { }
+          }
         } else if (line != null && line.Trim().StartsWith("paste ")) {
           string rest = line.Trim().Substring(6);
           int space = rest.IndexOf(' ');

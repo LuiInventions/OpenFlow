@@ -774,10 +774,10 @@ function settingsHtml() {
   const shelfItems = removedKeys.map((k) => {
     const def = getBubbleElementDef(k);
     if (!def) return "";
-    return `<button type="button" class="removed-elem-btn" draggable="true" data-shelf-elem="${k}" data-elem-add="${k}" title="Add back ${esc(def.name)} (click or drag onto the bubble)">${def.miniIcon}<span>${esc(def.name)}</span><span class="elem-plus-badge">+</span></button>`;
+    return `<button type="button" class="removed-elem-btn" draggable="true" data-shelf-elem="${k}" data-elem-add="${k}" title="Add back ${esc(def.name)} (click or drag onto the bubble)">${def.miniIcon}<span>${esc(def.name)}</span></button>`;
   });
   if (!voiceNoteOn && currentElems.includes("voice")) {
-    shelfItems.push(`<button type="button" class="removed-elem-btn" draggable="true" data-shelf-elem="vnote" data-vnote-add title="Add back ${VOICE_NOTE_DEF.name} (click or drop anywhere on the bubble — it snaps back to the mic)">${VOICE_NOTE_DEF.miniIcon}<span>${VOICE_NOTE_DEF.name}</span><span class="elem-plus-badge">+</span></button>`);
+    shelfItems.push(`<button type="button" class="removed-elem-btn" draggable="true" data-shelf-elem="vnote" data-vnote-add title="Add back ${VOICE_NOTE_DEF.name} (click or drop anywhere on the bubble — it snaps back to the mic)">${VOICE_NOTE_DEF.miniIcon}<span>${VOICE_NOTE_DEF.name}</span></button>`);
   }
   const removedShelfHtml = shelfItems.length > 0
     ? `<div class="removed-elements-shelf"><div class="shelf-head"><span class="shelf-label">Removed Elements</span></div><div class="removed-elements-list">${shelfItems.join("")}</div></div>`

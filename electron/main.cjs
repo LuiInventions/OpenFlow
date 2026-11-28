@@ -13,6 +13,7 @@ const audio = require("../src/audio");
 const parakeet = require("../src/parakeet");
 const commands = require("../src/commands");
 const { createNoteSparkle } = require("../src/note-sparkle");
+const { createFlameshot } = require("../src/flameshot");
 const { createApiKeyStatus } = require("../src/api-key-status");
 const { createTextCompletion } = require("../src/text-completion");
 const { createDictationCleanup, active: cleanupActive, legacyDictationUsage } = require("../src/dictation-cleanup");
@@ -54,7 +55,7 @@ let shortcutRecording = false;
 let targetHwnd = 0;
 let notePadId = "";
 let hidingBar = false;
-let flameshotDaemon = null;
+let screenshotTool = null;
 let pendingRefresh = null;
 let speechChain = Promise.resolve();
 const speechSessions = new Map();
@@ -1329,48 +1330,6 @@ function writeFlameshotTheme(exe) {
   }
 }
 
-function flameshotAlive() {
-  return Boolean(flameshotDaemon && flameshotDaemon.exitCode == null && !flameshotDaemon.killed);
-}
-
-function stopBundledFlameshot(exe) {
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      resolve();
-    };
-    const timer = setTimeout(finish, 4000);
-    execFile("powershell.exe", [
-      "-NoProfile",
-      "-Command",
-      "$want = [IO.Path]::GetFullPath($env:OF_FLAMESHOT); Get-CimInstance Win32_Process -Filter \"Name = 'flameshot.exe'\" | Where-Object { $_.ExecutablePath -and ([IO.Path]::GetFullPath($_.ExecutablePath) -ieq $want) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
-    ], {
-      windowsHide: true,
-      env: { ...process.env, OF_FLAMESHOT: exe },
-    }, () => {
-      clearTimeout(timer);
-      finish();
-    });
-  });
-}
-
-async function ensureFlameshot(exe) {
-  writeFlameshotTheme(exe);
-  if (flameshotAlive()) return;
-  await stopBundledFlameshot(exe);
-  flameshotDaemon = spawn(exe, [], {
-    detached: true,
-    stdio: "ignore",
-    windowsHide: false,
-    cwd: path.dirname(exe),
-  });
-  flameshotDaemon.on("error", () => {});
-  flameshotDaemon.unref();
-  await delay(700);
-}
-
 function flameshotExe() {
   const roots = [
     path.join(process.resourcesPath, "flameshot"),
@@ -1383,27 +1342,55 @@ function flameshotExe() {
   return "";
 }
 
-async function openFlameshot() {
+function triggerScreenshot(pid, exe) {
+  if (!chord || chord.killed) return Promise.resolve(false);
+  return new Promise(resolve => {
+    const socket = net.connect(`\\\\.\\pipe\\${pipeName()}`);
+    let settled = false;
+    let response = "";
+    const finish = ok => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(ok);
+    };
+    const timer = setTimeout(() => finish(false), 120);
+    socket.on("connect", () => socket.write(`shot ${pid} ${Buffer.from(exe, "utf8").toString("base64")}\n`));
+    socket.on("data", chunk => {
+      response += decodeChunk(chunk);
+      if (response.includes("\n")) finish(response.trim() === "ok");
+    });
+    socket.on("error", () => finish(false));
+    socket.on("end", () => finish(response.trim() === "ok"));
+  });
+}
+
+function getScreenshotTool() {
+  if (screenshotTool) return screenshotTool;
   const exe = flameshotExe();
-  if (!exe) {
+  if (!exe) return null;
+  screenshotTool = createFlameshot({
+    exe, spawn, prepare: writeFlameshotTheme, delay, trigger: triggerScreenshot,
+    hide() {
+      hidingBar = true;
+      if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.hide();
+    },
+    restore() { hidingBar = false; restoreBar(); },
+    onError(error) {
+      store.addNotification({ title: "Screenshot", body: `Flameshot could not start: ${error.message}` });
+    },
+  });
+  return screenshotTool;
+}
+
+function openFlameshot() {
+  const tool = getScreenshotTool();
+  if (!tool) {
     store.addNotification({ title: "Screenshot", body: "Flameshot missing" });
     return false;
   }
-  await ensureFlameshot(exe);
-  hidingBar = true;
-  if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.hide();
-  await delay(160);
-  const child = spawn(exe, ["gui"], {
-    detached: true,
-    stdio: "ignore",
-    windowsHide: false,
-    cwd: path.dirname(exe),
-  });
-  child.unref();
-  await delay(800);
-  hidingBar = false;
-  restoreBar();
-  return true;
+  return tool.open();
 }
 
 function refreshMain() {
@@ -1850,6 +1837,7 @@ if (!gotLock) {
     ensureCommandsScripts();
     applyFloatingBubbleState();
     createWindows();
+    if (process.env.OPENFLOW_SMOKE !== "1") getScreenshotTool()?.warm();
     ensureApiKeyStatus().validate().catch(() => {});
     createTray();
     watchPointer();
@@ -1866,6 +1854,7 @@ if (!gotLock) {
 app.on("before-quit", () => {
   quitting = true;
   parakeet.cancelDownload();
+  screenshotTool?.dispose();
   if (pointerTimer) clearInterval(pointerTimer);
   stopChord();
 });

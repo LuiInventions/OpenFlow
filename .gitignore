@@ -1,6 +1,7 @@
 node_modules/
 release/
 release-local/
+release-artifacts/
 dist/
 SPEC.md
 *.log

@@ -17,9 +17,11 @@ The compact dark-black floating bubble rests at the bottom of your screen. Hold 
 ---
 
 <!-- Keep only the latest release notes here; older releases belong in GitHub Releases. -->
-## New in 1.5.41
+## New in 1.5.42
 
-- **Tighter multilingual labels:** the vertical gap between each speech-model description and its Multilingual label is reduced by one third. The spacing adapts to wrapped descriptions and both appearances, while the globe remains optically centred on the text.
+- **Faster screenshots:** the Bubble screenshot action uses the resident Flameshot daemon through the existing native bridge, avoiding another Qt process and per-click PowerShell scans. The regular Flameshot GUI remains available if the bridge or daemon is unavailable.
+- **Clean Removed Elements:** removed items are solid green (`#10b981`) with balanced padding and no plus badge; clicking and dragging still restore them.
+- **Compact AI model cards:** both speech-model cards end directly below Multilingual, with equal heights and room for wrapped descriptions, details and download progress in Light and Dark.
 
 ## Floating Bubble & Symbols
 
