@@ -10,6 +10,8 @@ const views = [
 
 const state = {
   desk: null,
+  audioInputs: [],
+  audioInputError: "",
   view: "dictate",
   editor: null,
   commandEditor: null,
@@ -300,6 +302,7 @@ async function saveApiKey() {
 }
 
 function render() {
+  window.OpenflowSelect.close();
   const nav = document.querySelector("#nav");
   nav.innerHTML = views.map(([id, label, icon]) => {
     const current = id === state.view ? ' aria-current="page"' : "";
@@ -329,6 +332,7 @@ function render() {
   paintOnboarding();
   paintConfirmModal();
 
+  if (state.view === "settings") refreshAudioInputs().catch(() => {});
   const key = view.querySelector("#api-key");
   if (key) {
     key.addEventListener("change", saveApiKey);
@@ -711,6 +715,35 @@ function openaiCardHtml(sttEngine) {
 }
 
 
+let audioInputGeneration = 0;
+function inputDeviceOptions(settings) {
+  return OpenflowAudioInput.options(state.audioInputs, settings.inputDeviceId, settings.inputDeviceLabel);
+}
+function inputDeviceSelect(settings) {
+  return OpenflowSelect.html({id:"input-device",key:"input-device",label:"Input device",value:OpenflowAudioInput.normalizeId(settings.inputDeviceId),options:inputDeviceOptions(settings),describedBy:"input-device-help input-device-status"});
+}
+function inputDeviceStatus(settings) {
+  if (state.audioInputError) return state.audioInputError;
+  if (inputDeviceOptions(settings).some(option=>option.disabled)) return "Selected device is unavailable. Connect it or choose another input.";
+  return "";
+}
+async function refreshAudioInputs(requestLabels = false) {
+  if (!document.querySelector("#input-device")) return;
+  const generation = ++audioInputGeneration;
+  try {
+    const devices = await OpenflowAudioInput.enumerate(navigator.mediaDevices,requestLabels);
+    if (generation !== audioInputGeneration) return;
+    state.audioInputs = devices; state.audioInputError = devices.length ? "" : "No microphones found. Connect an input device.";
+  } catch {
+    if (generation !== audioInputGeneration) return;
+    state.audioInputError = "Allow microphone access to show all input devices.";
+  }
+  const settings = state.desk?.settings || {};
+  OpenflowSelect.update(document.querySelector("#input-device"),inputDeviceOptions(settings),OpenflowAudioInput.normalizeId(settings.inputDeviceId));
+  const status = document.querySelector("#input-device-status");
+  if (status) status.textContent = inputDeviceStatus(settings);
+}
+
 function settingsHtml() {
   const settings = state.desk.settings || {};
   const sttEngine = settings.sttEngine === "openai" ? "openai" : "parakeet";
@@ -731,14 +764,16 @@ function settingsHtml() {
   const modeDesc = isToggle
     ? "Press the shortcut once to start recording, and press it a second time to finish."
     : "Keep the shortcut held down while speaking and release to finish dictation.";
-  const dictationCard = `<div class="settings-card"><div class="section-label">Dictation</div><div class="shortcut-grid" role="radiogroup" aria-label="Dictation Shortcut">${shortcutHtml}</div><div class="mode-toggle-card"><div class="mode-toggle-copy"><strong>${modeTitle}</strong><span>${modeDesc}</span></div><div class="mode-slider-wrap"><span class="mode-slider-label${!isToggle ? " active" : ""}">Hold</span><button type="button" class="switch-btn" role="switch" data-dictation-mode-toggle aria-checked="${isToggle ? "true" : "false"}" aria-label="Toggle between Hold to Dictate and Press to Start/Stop"><span class="switch-thumb"></span></button><span class="mode-slider-label${isToggle ? " active" : ""}">Start / Stop</span></div></div>${soundCard}</div>`;
+  const inputCard = `<div class="mode-toggle-card input-device-card"><div class="mode-toggle-copy"><strong><label for="input-device">Input device</label></strong><span id="input-device-help">Microphone used for dictation and voice notes.</span><span class="input-device-status" id="input-device-status" role="status">${esc(inputDeviceStatus(settings))}</span></div>${inputDeviceSelect(settings)}</div>`;
+  const dictationCard = `<div class="settings-card"><div class="section-label">Dictation</div><div class="shortcut-grid" role="radiogroup" aria-label="Dictation Shortcut">${shortcutHtml}</div><div class="mode-toggle-card"><div class="mode-toggle-copy"><strong>${modeTitle}</strong><span>${modeDesc}</span></div><div class="mode-slider-wrap"><span class="mode-slider-label${!isToggle ? " active" : ""}">Hold</span><button type="button" class="switch-btn" role="switch" data-dictation-mode-toggle aria-checked="${isToggle ? "true" : "false"}" aria-label="Toggle between Hold to Dictate and Press to Start/Stop"><span class="switch-thumb"></span></button><span class="mode-slider-label${isToggle ? " active" : ""}">Start / Stop</span></div></div>${soundCard}${inputCard}</div>`;
   const dark = settings.theme !== "light";
   const styleCard = `<div class="settings-card"><div class="section-label">Style</div><div class="mode-toggle-card"><div class="mode-toggle-copy"><strong>Light / Dark</strong><span>Choose a light or dark appearance.</span></div><div class="mode-slider-wrap"><span class="mode-slider-label${!dark ? " active" : ""}">Light</span><button type="button" class="switch-btn" role="switch" data-theme-toggle aria-checked="${dark ? "true" : "false"}" aria-label="Dark mode"><span class="switch-thumb"></span></button><span class="mode-slider-label${dark ? " active" : ""}">Dark</span></div></div></div>`;
   const hint = settings.hasKey ? "Saved locally (enter a new key to replace)" : "sk-... (optional with Parakeet v3)";
   const ask = (sttEngine === "openai" && !settings.hasKey)
     ? `<div class="prompt-banner">Please enter your OpenAI API key to use cloud speech recognition, or switch to Parakeet v3 (Local).</div>`
     : "";
-  const sttCard = `<div class="settings-card">${ask}<div class="section-label">AI features</div>${sttCardsHtml(sttEngine)}<label class="key">OpenAI API Key ${sttEngine === "parakeet" ? "(Optional)" : ""}<div class="key-row"><input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="${esc(hint)}"><button type="button" id="save-key" class="btn-primary">Save Key</button></div></label>${apiKeyMessage(settings) ? `<p class="api-key-status" role="status">${esc(apiKeyMessage(settings))}</p>` : ""}${apiKeyRetry(settings)}${improvementSwitches(settings)}</div>`;
+  const keyBlock = `<div class="api-key-block">${ask}<label class="key">OpenAI API Key ${sttEngine === "parakeet" ? "(Optional)" : ""}<div class="key-row"><input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="${esc(hint)}"><button type="button" id="save-key" class="btn-primary">Save Key</button></div></label>${apiKeyMessage(settings) ? `<p class="api-key-status" role="status">${esc(apiKeyMessage(settings))}</p>` : ""}${apiKeyRetry(settings)}</div>`;
+  const sttCard = `<div class="settings-card models-settings-card"><div class="section-label">Models</div>${sttCardsHtml(sttEngine)}${improvementSwitches(settings)}${keyBlock}</div>`;
 
   // Floating Bubble Appearance
   const bubbleStyle = state.draftFloatingBubble || settings.floatingBubble || "active";
@@ -816,12 +851,12 @@ async function retryApiKey() {
 
 function improvementSwitches(settings, prefix = "", compact = false) {
   const ready = Boolean(settings.hasWorkingKey);
-  const options = (settings.textImprovementModels || []).map(model => `<option value="${esc(model.id)}"${model.id === settings.noteImproveModel ? " selected" : ""}>${esc(model.label)} · ${esc(model.tier)}</option>`).join("");
-  const modelRow = compact ? "" : `<div class="improvement-switch-row improvement-model-row"><div class="improvement-switch-copy"><div class="improvement-switch-heading"><label for="improvement-model"><strong>Text model</strong></label></div><p id="improvement-model-help">Used for both notes and dictation.</p></div><div class="improvement-model-select"><select id="improvement-model" data-improvement-model aria-describedby="improvement-model-help">${options}</select></div></div>`;
+  const options = (settings.textImprovementModels || []).map(model => ({value:model.id,label:`${model.label} · ${model.tier}`}));
+  const modelRow = compact ? "" : `<div class="mode-toggle-card improvement-switch-row improvement-model-row"><div class="improvement-switch-copy mode-toggle-copy"><div class="improvement-switch-heading"><label for="improvement-model"><strong>Text model</strong></label></div><p id="improvement-model-help">Used for both notes and dictation.</p></div>${OpenflowSelect.html({id:"improvement-model",key:"text-model",label:"Text model",value:settings.noteImproveModel,options,describedBy:"improvement-model-help"})}</div>`;
   return `<div class="improvement-switches">${compact ? "" : '<div class="section-label">Notes &amp; Dictation</div>'}${[
     ["Improve Notes", "note-improve", settings.noteImproveEnabled !== false, compact ? "Polish and rewrite notes using the sparkle button." : "Rewrite and polish your notes with AI. Use the sparkle button inside a note."],
     ["Improve Dictation", "dictation-cleanup", settings.dictationCleanupEnabled === true, compact ? "Compress or polish dictated text before pasting. Choose Compact or Polish in the bubble." : "Compress dictated text without losing meaningful information before pasting. Choose Original, Compact dictation, or Polish dictation from the bubble menu."],
-  ].map(([label, feature, enabled, description]) => { const usable = ready && (feature !== "dictation-cleanup" || settings.sttEngine === "openai"); return `<div class="improvement-switch-row"><div class="improvement-switch-copy"><div class="improvement-switch-heading"><strong>${label}</strong><span class="api-only">(API only)</span></div><p id="${prefix}${feature}-help">${description}</p></div><button type="button" class="switch-btn" role="switch" data-${feature}-enabled aria-checked="${usable && enabled}" aria-label="${label}" aria-describedby="${prefix}${feature}-help"${usable ? "" : " disabled"}><span class="switch-thumb"></span></button></div>`; }).join("")}${modelRow}</div>`;
+  ].map(([label, feature, enabled, description]) => { const usable = ready && (feature !== "dictation-cleanup" || settings.sttEngine === "openai"); return `<div class="mode-toggle-card improvement-switch-row"><div class="improvement-switch-copy mode-toggle-copy"><div class="improvement-switch-heading"><strong>${label}</strong><span class="api-only">(API only)</span></div><p id="${prefix}${feature}-help">${description}</p></div><button type="button" class="switch-btn" role="switch" data-${feature}-enabled aria-checked="${usable && enabled}" aria-label="${label}" aria-describedby="${prefix}${feature}-help"${usable ? "" : " disabled"}><span class="switch-thumb"></span></button></div>`; }).join("")}${modelRow}</div>`;
 }
 
 function paintCommandEditor() {
@@ -1172,7 +1207,7 @@ function aiFeaturesOnboardingHtml(settings) {
   const keyField = !ready ? `<div class="ai-onboarding-key"><label for="ai-onboard-key">OpenAI API key <span class="api-only">(for gpt-transcribe and improvements)</span></label><div class="key-row"><input id="ai-onboard-key" class="onboard-input" type="password" autocomplete="off" spellcheck="false" placeholder="sk-..."${state.onboardingBusy ? " disabled" : ""}><button type="button" class="btn-primary" data-ai-onboard-save-key${state.onboardingBusy ? " disabled" : ""}>${state.onboardingBusy ? "Checking…" : "Save key"}</button></div></div>` : "";
   const message = state.onboardingError || apiKeyMessage(settings);
   const hint = onboardingEngineReady(settings) ? "" : settings.sttEngine === "openai" ? "Save a working API key to continue." : "Download the model with the blue button to continue.";
-  return `<div class="onboarding-card ai-onboarding" role="dialog" aria-modal="true" aria-labelledby="ai-onboarding-title"><div><h2 id="ai-onboarding-title">AI features</h2><p class="sub">Download the free offline model, or choose gpt-transcribe with your OpenAI API key.</p></div>${sttCardsHtml(settings.sttEngine, true)}${improvementSwitches(settings, "onboard-", true)}${keyField}${message ? `<p class="api-key-status" role="status">${esc(message)}</p>` : ""}${apiKeyRetry(settings)}<div class="onboarding-actions">${hint ? `<span class="onboarding-hint">${hint}</span>` : ""}<button type="button" class="btn-primary" data-ai-onboard-continue${state.onboardingBusy || !onboardingEngineReady(settings) ? " disabled" : ""}>Continue</button></div></div>`;
+  return `<div class="onboarding-card ai-onboarding" role="dialog" aria-modal="true" aria-labelledby="ai-onboarding-title"><div><h2 id="ai-onboarding-title">Models</h2><p class="sub">Download the free offline model, or choose gpt-transcribe with your OpenAI API key.</p></div>${sttCardsHtml(settings.sttEngine, true)}${improvementSwitches(settings, "onboard-", true)}${keyField}${message ? `<p class="api-key-status" role="status">${esc(message)}</p>` : ""}${apiKeyRetry(settings)}<div class="onboarding-actions">${hint ? `<span class="onboarding-hint">${hint}</span>` : ""}<button type="button" class="btn-primary" data-ai-onboard-continue${state.onboardingBusy || !onboardingEngineReady(settings) ? " disabled" : ""}>Continue</button></div></div>`;
 }
 
 async function saveOnboardingKey() {
@@ -1231,12 +1266,22 @@ function paintConfirmModal() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  document.addEventListener("change", async event => {
-    const select = event.target.closest("[data-improvement-model]");
-    if (!select || !window.openflow) return;
-    select.disabled = true;
-    try { await window.openflow.dispatch("settings.save", { noteImproveModel: select.value }); }
-    finally { await load(); }
+  OpenflowSelect.bind();
+  document.addEventListener("settings-select-open", event => {
+    if (event.detail.key === "input-device") refreshAudioInputs(true).catch(() => {});
+  });
+  navigator.mediaDevices?.addEventListener("devicechange", () => { refreshAudioInputs().catch(() => {}); });
+  document.addEventListener("settings-select-change", async event => {
+    if (!window.openflow) return;
+    const {key,value,label} = event.detail;
+    const trigger = event.target;
+    if (!["text-model","input-device"].includes(key)) return;
+    trigger.disabled = true;
+    try {
+      await window.openflow.dispatch("settings.save", key === "text-model" ? {noteImproveModel:value} : {inputDeviceId:value,inputDeviceLabel:label});
+    } finally {
+      await load(); document.getElementById(trigger.id)?.focus({preventScroll:true});
+    }
   });
   const viewEl = document.querySelector("#view");
   if (viewEl) {

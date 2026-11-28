@@ -178,6 +178,7 @@
       </div>
     </div>
   </div>
+  <script src="../src/audio-input.js"></script>
   <script>
     const menu = document.querySelector("#menu");
     const cleanupToggle = document.querySelector("#cleanup-toggle");
@@ -213,6 +214,7 @@
     let uiGen = 0;
     let micRepaired = false;
     let capture = null;
+    let inputDeviceId = "";
     let activeBucket = null;
     let closingBucket = null;
     let micQueue = Promise.resolve();
@@ -499,35 +501,12 @@
       current.stream.getTracks().forEach((track) => track.stop());
     }
 
-    async function acquireStream() {
-      const strict = {
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-          channelCount: 1,
-        },
-      };
-      try {
-        return await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch (first) {
-        try {
-          return await navigator.mediaDevices.getUserMedia(strict);
-        } catch (_second) {
-          if (!micRepaired && window.openflow) {
-            micRepaired = true;
-            const repaired = await window.openflow.dispatch("mic.repair").catch(() => null);
-            if (repaired && repaired.changed) {
-              try {
-                return await navigator.mediaDevices.getUserMedia({ audio: true });
-              } catch (_again) {
-                return navigator.mediaDevices.getUserMedia(strict);
-              }
-            }
-          }
-          throw first;
-        }
-      }
+    async function acquireStream(deviceId) {
+      return OpenflowAudioInput.acquire(navigator.mediaDevices, deviceId, async () => {
+        if (micRepaired || !window.openflow) return null;
+        micRepaired = true;
+        return window.openflow.dispatch("mic.repair").catch(() => null);
+      });
     }
 
     async function loadWorklet(context) {
@@ -718,48 +697,62 @@
     }
 
     async function ensureCapture() {
-      if (streamLive(capture)) {
+      if (OpenflowAudioInput.reusable(capture, inputDeviceId)) {
         if (capture.context && capture.context.state === "suspended") await capture.context.resume().catch(() => {});
         return capture;
       }
       releaseCapture();
-      const stream = await acquireStream();
-      const context = new AudioContext({ latencyHint: "interactive" });
-      if (context.state === "suspended") await context.resume().catch(() => {});
-      const rate = context.sampleRate || 48000;
-      const flushAt = window.openflow ? await window.openflow.flushSampleCount(rate) : 0;
-      const source = context.createMediaStreamSource(stream);
-      const analyser = context.createAnalyser();
-      analyser.fftSize = 1024;
-      analyser.smoothingTimeConstant = 0.35;
-      const silent = context.createGain();
-      silent.gain.value = 0;
-      const next = {
-        stream,
-        context,
-        source,
-        analyser,
-        silent,
-        rate,
-        flushAt: flushAt || Math.floor((15 * 1024 * 1024 / 2) * rate / 16000),
-        onDone: null,
-        meter: 0,
-      };
-      stream.getTracks().forEach((track) => {
-        track.addEventListener("ended", () => {
-          if (capture === next) releaseCapture();
-        });
-      });
+      const requestedDeviceId = inputDeviceId;
+      const stream = await acquireStream(requestedDeviceId);
+      let context;
       try {
-        await loadWorklet(context);
-        const node = new AudioWorkletNode(context, "openflow-capture");
-        next.worklet = node;
-        node.port.onmessage = onWorkletMessage;
-      } catch (_error) {
-        next.worklet = null;
+        context = new AudioContext({ latencyHint: "interactive" });
+        if (context.state === "suspended") await context.resume().catch(() => {});
+        const rate = context.sampleRate || 48000;
+        const flushAt = window.openflow ? await window.openflow.flushSampleCount(rate) : 0;
+        const source = context.createMediaStreamSource(stream);
+        const analyser = context.createAnalyser();
+        analyser.fftSize = 1024;
+        analyser.smoothingTimeConstant = 0.35;
+        const silent = context.createGain();
+        silent.gain.value = 0;
+        const next = {
+          deviceId: requestedDeviceId,
+          stream,
+          context,
+          source,
+          analyser,
+          silent,
+          rate,
+          flushAt: flushAt || Math.floor((15 * 1024 * 1024 / 2) * rate / 16000),
+          onDone: null,
+          meter: 0,
+        };
+        stream.getTracks().forEach((track) => {
+          track.addEventListener("ended", () => {
+            if (capture !== next) return;
+            if (armed) {
+              stop();
+              enqueueMic(() => { if (capture === next) releaseCapture(); });
+            } else releaseCapture();
+          });
+        });
+        try {
+          await loadWorklet(context);
+          const node = new AudioWorkletNode(context, "openflow-capture");
+          next.worklet = node;
+          node.port.onmessage = onWorkletMessage;
+        } catch (_error) {
+          next.worklet = null;
+        }
+        if (!streamLive(next)) throw new Error("Input device disconnected. Connect it or choose another device in Settings.");
+        capture = next;
+        return next;
+      } catch (error) {
+        stream.getTracks().forEach(track => track.stop());
+        if (context) context.close().catch(() => {});
+        throw error;
       }
-      capture = next;
-      return next;
     }
 
     function settle() {
@@ -890,7 +883,7 @@
           startRecorder(bucket);
           if (capture.worklet) capture.worklet.port.postMessage("start");
         });
-      } catch (_error) {
+      } catch (error) {
         if (gen !== uiGen) return;
         armed = false;
         activeBucket = null;
@@ -903,7 +896,7 @@
         if (window.openflow) {
           window.openflow.dispatch("notifications.add", {
             title: "Microphone",
-            body: "Microphone access blocked",
+            body: error?.message || "Microphone access blocked",
           }).catch(() => {});
         }
       }
@@ -966,6 +959,12 @@
     }
 
     function applyCleanupConfig(config) {
+      inputDeviceId = OpenflowAudioInput.normalizeId(config.inputDeviceId);
+      if (capture && !armed && !closingBucket && capture.deviceId !== inputDeviceId) {
+        enqueueMic(() => {
+          if (capture && !armed && !closingBucket && capture.deviceId !== inputDeviceId) releaseCapture();
+        });
+      }
       cleanupEnabled = config.dictationCleanupEnabled === true;
       cleanupMode = cleanupEnabled && ["compact", "polished"].includes(config.dictationCleanupMode) ? config.dictationCleanupMode : "raw";
       textModelReady = Boolean(config.textModelReady);
@@ -1102,6 +1101,10 @@
       paint();
     });
 
+    navigator.mediaDevices?.addEventListener("devicechange", () => {
+      if (capture) capture.stale = true;
+      if (!armed && !closingBucket) enqueueMic(() => { if (capture?.stale && !armed && !closingBucket) releaseCapture(); });
+    });
     if (window.openflow) {
       window.openflow.dispatch("settings.get").then((s) => {
         if (!s) return;

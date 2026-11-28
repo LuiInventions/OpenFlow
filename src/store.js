@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const commands = require("./commands");
+const { normalizeId: normalizeInputId } = require("./audio-input");
 const { normalizeOpenAIModel, DEFAULT_OPENAI_MODEL } = require("./note-improve");
 
 function blank() {
@@ -34,6 +35,8 @@ function blank() {
       startInTray: true,
       openAtLogin: false,
       sounds: true,
+      inputDeviceId: "",
+      inputDeviceLabel: "",
       theme: "dark",
       tone: "clear",
       styleInstructions: "",
@@ -89,6 +92,8 @@ function createStore(filePath) {
   }
 
   function normalizeCleanup() {
+    data.settings.inputDeviceId = normalizeInputId(data.settings.inputDeviceId);
+    data.settings.inputDeviceLabel = data.settings.inputDeviceId && typeof data.settings.inputDeviceLabel === "string" ? data.settings.inputDeviceLabel.trim().slice(0, 256) : "";
     data.settings.theme = data.settings.theme === "light" ? "light" : "dark";
     data.settings.noteImproveProvider = "openai";
     data.settings.noteImproveModel = normalizeOpenAIModel(data.settings.noteImproveModel);

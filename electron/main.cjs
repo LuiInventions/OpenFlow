@@ -10,6 +10,7 @@ const { createStore } = require("../src/store");
 const providers = require("../src/providers");
 const flow = require("../src/flow");
 const audio = require("../src/audio");
+const { normalizeId: normalizeInputId } = require("../src/audio-input");
 const parakeet = require("../src/parakeet");
 const commands = require("../src/commands");
 const { createNoteSparkle } = require("../src/note-sparkle");
@@ -898,6 +899,7 @@ function applyFloatingBubbleState() {
   sendBar({
     type: "config",
     sounds: settings.sounds !== false,
+    inputDeviceId: normalizeInputId(settings.inputDeviceId),
     floatingBubble: mode,
     bubbleElements: elements,
     voiceNoteButton: settings.voiceNoteButton !== false,
@@ -1485,6 +1487,10 @@ const actions = {
     }
     if (payload && (payload.dictationMode === "hold" || payload.dictationMode === "toggle")) {
       patch.dictationMode = payload.dictationMode;
+    }
+    if (payload && Object.prototype.hasOwnProperty.call(payload, "inputDeviceId")) {
+      patch.inputDeviceId = normalizeInputId(payload.inputDeviceId);
+      patch.inputDeviceLabel = patch.inputDeviceId && typeof payload.inputDeviceLabel === "string" ? payload.inputDeviceLabel.trim().slice(0, 256) : "";
     }
     if (payload && typeof payload.sounds === "boolean") {
       patch.sounds = payload.sounds;

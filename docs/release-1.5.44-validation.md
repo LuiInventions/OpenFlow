@@ -1,0 +1,12 @@
+# OpenFlow 1.5.44 validation
+
+Started from a fresh GitHub clone of v1.5.43 (039fc8e). Existing local work was not included.
+
+- `npm test`: 126 passing tests. New audio-input coverage checks enumeration/filtering, temporary label-discovery stream cleanup, selected-device constraints through compatibility/repair retries, unavailable-device errors, live-stream cache invalidation and persisted settings.
+- `verify:settings`: eight existing model-card/layout combinations plus four new controls combinations (820/720-pixel content widths, Light/Dark). Models precede Notes & Dictation; the divider is below Text model and above the API key. All three improvement/model rows match Dictation card backgrounds, radii, padding and borders.
+- Custom dropdown behavior: mouse selection, keyboard opening/navigation/Home/End/Enter, Escape and outside-click dismissal; viewport bounds; no native selects or nested trigger borders. Text-model and input-device selections send the correct persisted settings payloads. Removing/reconnecting a simulated input refreshes the list and preserves the selected device.
+- `verify:input-device`: real settings IPC and the actual recording setup were exercised in isolated profiles, from source and from the packaged ASAR. Two Windows input routes (the microphone and its communications route) produced live tracks with the requested device IDs. A selection change preserved an active stream; the next acquisition released the previous route and used the new one. System default and stored settings were verified. Only track metadata was examined; audio was not transcribed, saved or sent to any provider.
+- `verify:package`: all application source/renderer files match the checkout, including the shared audio-input module and dropdown component. Bundled Flameshot/Qt and Sherpa runtimes are present. Unpacked package size: 410.68 MiB.
+- The Windows release workflow reruns unit and layout/control checks, builds both installers, verifies package contents, and stages exactly the preceding release's five asset types with validated update hashes and SHA-256 checksums.
+
+Media handling follows [MediaDevices enumeration](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/enumerateDevices), [device-change events](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/devicechange_event), and the [Media Capture and Streams specification](https://www.w3.org/TR/mediacapture-streams/).
