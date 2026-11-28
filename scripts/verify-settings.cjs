@@ -26,19 +26,23 @@ app.whenReady().then(async () => {
             });
             const removed = [...document.querySelectorAll('.removed-elem-btn')].map(button => {
               const css=getComputedStyle(button);
-              return {green:css.backgroundColor, left:css.paddingLeft, right:css.paddingRight, spans:button.querySelectorAll('span').length, draggable:button.draggable};
+              return {background:css.backgroundColor, color:css.color, icons:button.querySelectorAll("svg").length, left:css.paddingLeft, right:css.paddingRight, spans:button.querySelectorAll('span').length, draggable:button.draggable};
             });
-            return { cards, removed, plus:document.querySelector('.elem-plus-badge')!==null };
+            return { cards, removed, speeds:[...document.querySelectorAll(".engine-metric-row:last-child strong")].map(el=>el.textContent), speedBars:[...document.querySelectorAll(".engine-metric-row:last-child .engine-bar-fill")].map(el=>el.style.width), plus:document.querySelector('.elem-plus-badge')!==null };
           })()`);
           for (const card of result.cards) {
             assert.ok(!card.overflow, JSON.stringify({width,theme,installed,card}));
             assert.ok(card.bottomGap <= 20, JSON.stringify({width,theme,installed,card}));
             assert.ok(card.bottomGap >= 10);
           }
+          assert.deepEqual(result.speeds,["5,9\u00d7","26,0\u00d7"]);
+          assert.deepEqual(result.speedBars,["18%","80%"]);
           assert.equal(result.plus, false);
           assert.equal(result.removed.length, 4);
           for (const item of result.removed) {
-            assert.equal(item.green, "rgb(16, 185, 129)");
+            assert.equal(item.background, "rgb(255, 255, 255)");
+            assert.equal(item.color, "rgb(0, 0, 0)");
+            assert.equal(item.icons, 0);
             assert.equal(item.left, item.right);
             assert.equal(item.spans, 1);
             assert.equal(item.draggable, true);
@@ -50,6 +54,8 @@ app.whenReady().then(async () => {
         fs.writeFileSync(path.join(root, ".cache", `settings-${theme}-${width}.png`), (await win.webContents.capturePage()).toPNG());
       }
     }
+    await win.webContents.executeJavaScript(`document.documentElement.dataset.theme='dark'; state.sttInfoParakeet=true; state.sttInfoOpenai=true; document.querySelector('#view').innerHTML=settingsHtml(); document.querySelector('#view').scrollIntoView(); new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`);
+    fs.writeFileSync(path.join(root,".cache","ai-info-dark.png"),(await win.webContents.capturePage()).toPNG());
     console.log(JSON.stringify({verified:true,results})); app.exit(0);
   } catch (error) { console.error(error); app.exit(1); }
 });

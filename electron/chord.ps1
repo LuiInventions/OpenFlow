@@ -567,17 +567,91 @@ public static class OpenFlowChord {
     return false;
   }
 
+  private delegate bool ScreenshotWindowCallback(IntPtr hwnd, IntPtr unused);
+  [StructLayout(LayoutKind.Sequential)]
+  private struct ScreenshotRect { public int Left, Top, Right, Bottom; }
+  [DllImport("user32.dll")] private static extern bool EnumWindows(ScreenshotWindowCallback callback, IntPtr unused);
+  [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hwnd);
+  [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd, out ScreenshotRect rect);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int size);
+
+  private static bool ScreenshotVisible(int pid) {
+    bool found = false;
+    EnumWindows(delegate(IntPtr window, IntPtr unused) {
+      uint owner; GetWindowThreadProcessId(window, out owner);
+      if (owner != (uint)pid || !IsWindowVisible(window)) return true;
+      var title = new StringBuilder(256); GetWindowText(window, title, title.Capacity);
+      ScreenshotRect bounds;
+      if (title.ToString().Equals("flameshot", StringComparison.OrdinalIgnoreCase) && GetWindowRect(window, out bounds) &&
+          bounds.Right - bounds.Left > 300 && bounds.Bottom - bounds.Top > 300) { found = true; return false; }
+      return true;
+    }, IntPtr.Zero);
+    return found;
+  }
+
+  private static bool WaitScreenshotVisible(int pid, int timeoutMs) {
+    var timer = Stopwatch.StartNew();
+    do {
+      if (ScreenshotVisible(pid)) return true;
+      Thread.Sleep(4);
+    } while (timer.ElapsedMilliseconds < timeoutMs);
+    return false;
+  }
+
+  private static bool WaitScreenshot(int pid, string executable) {
+    try {
+      if (screenshotProcess != null && !screenshotProcess.HasExited && screenshotExe == executable &&
+          ScreenshotVisible(screenshotProcess.Id)) return true;
+      Process target = Process.GetProcessById(pid);
+      if (target.HasExited || target.SessionId != Process.GetCurrentProcess().SessionId ||
+          !SameScreenshotBinary(target.MainModule.FileName, executable)) return false;
+      return WaitScreenshotVisible(pid, 1200);
+    } catch { return false; }
+  }
+
   public static bool TryScreenshot(int pid, string executable) {
     try {
-      // Flameshot is a per-session singleton, so an identical bundled copy from
-      // an earlier OpenFlow process can already own the daemon. Verify its bytes
-      // once, cache its Qt thread, and avoid launching another Qt process.
+      // A posted message is not an acknowledgement. Only report success once
+      // the verified daemon actually has a visible selection window.
       if (screenshotProcess == null || screenshotProcess.HasExited || screenshotExe != executable) {
         if (!FindScreenshotThread(pid, executable)) return false;
       }
-      return PostThreadMessage(screenshotThread, 0x0312, new IntPtr(1), new IntPtr(0x002C0000));
-    } catch { screenshotProcess = null; }
+      if (ScreenshotVisible(screenshotProcess.Id)) return true;
+      for (int attempt = 0; attempt < 2; attempt++) {
+        if (!PostThreadMessage(screenshotThread, 0x0312, new IntPtr(1), new IntPtr(0x002C0000))) break;
+        if (WaitScreenshotVisible(screenshotProcess.Id, 400)) return true;
+      }
+    } catch { }
+    screenshotProcess = null;
     return false;
+  }
+
+  private static void WatchScreenshotPipe() {
+    string name = (Environment.GetEnvironmentVariable("OPENFLOW_PIPE") ?? "OpenFlowPaste") + "-Screenshot";
+    while (true) {
+      try {
+        // Screenshot requests have their own channel and cannot queue behind a
+        // paste/focus operation. A normal client disconnect needs no cooldown.
+        using (var pipe = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.None)) {
+          pipe.WaitForConnection();
+          using (var reader = new StreamReader(pipe, new UTF8Encoding(false), false, 256, true))
+          using (var writer = new StreamWriter(pipe, new UTF8Encoding(false), 256, true)) {
+            string line = reader.ReadLine();
+            bool ok = false;
+            if (line != null) {
+              string[] parts = line.Split(new char[] { ' ' }, 3);
+              int pid;
+              if (parts.Length == 3 && int.TryParse(parts[1], out pid)) {
+                string executable = Encoding.UTF8.GetString(Convert.FromBase64String(parts[2]));
+                if (parts[0] == "open") ok = TryScreenshot(pid, executable);
+                else if (parts[0] == "state") ok = WaitScreenshot(pid, executable);
+              }
+            }
+            writer.WriteLine(ok ? "ok" : "miss"); writer.Flush();
+          }
+        }
+      } catch { Thread.Sleep(10); }
+    }
   }
 
   private static void WatchPipe() {
@@ -661,6 +735,9 @@ public static class OpenFlowChord {
     Console.OutputEncoding = Encoding.UTF8;
     SetChordMode(Environment.GetEnvironmentVariable("OPENFLOW_CHORD"));
     proc = Callback;
+    Thread screenshots = new Thread(WatchScreenshotPipe);
+    screenshots.IsBackground = true;
+    screenshots.Start();
     Thread pipe = new Thread(WatchPipe);
     pipe.IsBackground = true;
     pipe.Start();

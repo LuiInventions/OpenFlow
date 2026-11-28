@@ -652,13 +652,14 @@ function modelProgressHtml(model, onboarding = false) {
 }
 
 // Accuracy: 100 - avg. WER on the Open ASR Leaderboard (parakeet-tdt-0.6b-v3: 6.34 %).
-// Speed: real-time factor with the app's int8 CPU config (2 threads), measured on an
-// Intel i5-6300U (2015 dual-core laptop): 5.0-5.6x, so a conservative lower bound.
-const PARAKEET_CPU_SPEED = 5;
+// Speech-to-text speed values shown in the model details.
+const PARAKEET_CPU_SPEED = 5.9;
+const TRANSCRIBE_SPEED = 26.0;
+const speedLabel = value => `${value.toFixed(1).replace(".", ",")}\u00d7`;
 
-// Speed bars share one scale: gpt-transcribe's 34× fills 80 %.
+// Both speed bars share one scale; the API reference fills 80 %.
 function speedBarPercent(speed) {
-  return Math.min(100, Math.round(speed / 34 * 80));
+  return Math.min(100, Math.round(speed / TRANSCRIBE_SPEED * 80));
 }
 
 function engineMetricsHtml(rows) {
@@ -677,7 +678,7 @@ function parakeetCardHtml(sttEngine, onboarding = false) {
   const isChecked = sttEngine === "parakeet" && Boolean(model.installed || model.downloading);
   const isPinned = Boolean(state.sttInfoParakeet);
   const controls = active => `<div class="engine-actions">${onboarding ? parakeetDownloadButton(model) : ""}${selectedCheckHtml(isChecked)}<button type="button" class="engine-info-btn${active ? " active" : ""}" data-stt-info="parakeet" title="${active ? "Close details" : "Model details"}" aria-label="${active ? "Close details" : "Model details"}">${sttInfoIcon(active)}</button></div>`;
-  return `<div role="radio" tabindex="0" class="engine-option${isPinned ? " is-pinned" : ""}" data-stt-select="parakeet" aria-checked="${isChecked ? "true" : "false"}"><div class="engine-normal-view"><div class="engine-head"><strong>Parakeet v3 <span class="engine-subtitle">(Open-Source)</span></strong>${controls(false)}</div><p>${model.installed ? "Free, private dictation on your PC." : "Free offline dictation. Download the model to get started."}</p>${engineLanguageHtml()}</div><div class="engine-info-view"><div class="engine-info-head"><div class="engine-info-meta"><strong class="engine-info-title">Parakeet v3</strong><span class="engine-info-tagline">On your CPU · 640 MB</span></div>${controls(true)}</div>${engineMetricsHtml([["Accuracy", "94%", 94], ["Speed (CPU)", `${PARAKEET_CPU_SPEED}×`, speedBarPercent(PARAKEET_CPU_SPEED)]])}</div>${modelProgressHtml(model, onboarding)}</div>`;
+  return `<div role="radio" tabindex="0" class="engine-option${isPinned ? " is-pinned" : ""}" data-stt-select="parakeet" aria-checked="${isChecked ? "true" : "false"}"><div class="engine-normal-view"><div class="engine-head"><strong>Parakeet v3 <span class="engine-subtitle">(Open-Source)</span></strong>${controls(false)}</div><p>${model.installed ? "Free, private dictation on your PC." : "Free offline dictation. Download the model to get started."}</p>${engineLanguageHtml()}</div><div class="engine-info-view"><div class="engine-info-head"><div class="engine-info-meta"><strong class="engine-info-title">Parakeet v3</strong><span class="engine-info-tagline">On your CPU · 640 MB</span></div>${controls(true)}</div>${engineMetricsHtml([["Accuracy", "94%", 94], ["Speed (CPU)", speedLabel(PARAKEET_CPU_SPEED), speedBarPercent(PARAKEET_CPU_SPEED)]])}</div>${modelProgressHtml(model, onboarding)}</div>`;
 }
 
 function sttCardsHtml(sttEngine, onboarding = false) {
@@ -706,7 +707,7 @@ function paintModelProgress(model) {
 function openaiCardHtml(sttEngine) {
   const isChecked = sttEngine === "openai";
   const isPinned = Boolean(state.sttInfoOpenai);
-  return `<div role="radio" tabindex="0" class="engine-option${isPinned ? " is-pinned" : ""}" data-stt-select="openai" aria-checked="${isChecked ? "true" : "false"}"><div class="engine-normal-view"><div class="engine-head"><strong>gpt-transcribe</strong><div class="engine-actions">${selectedCheckHtml(isChecked)}<button type="button" class="engine-info-btn" data-stt-info="openai" title="Model details" aria-label="Model details">${sttInfoIcon(false)}</button></div></div><p>Uses OpenAI gpt-transcribe with your personal API key.</p>${engineLanguageHtml()}</div><div class="engine-info-view"><div class="engine-info-head"><div class="engine-info-meta"><strong class="engine-info-title">gpt-transcribe</strong><span class="engine-info-tagline">Automatic AI error correction</span></div><div class="engine-actions">${selectedCheckHtml(isChecked)}<button type="button" class="engine-info-btn active" data-stt-info="openai" title="Close details" aria-label="Close details">${sttInfoIcon(true)}</button></div></div>${engineMetricsHtml([["Accuracy", "93%", 93], ["Speed (API)", "34×", 80]])}</div></div>`;
+  return `<div role="radio" tabindex="0" class="engine-option${isPinned ? " is-pinned" : ""}" data-stt-select="openai" aria-checked="${isChecked ? "true" : "false"}"><div class="engine-normal-view"><div class="engine-head"><strong>gpt-transcribe</strong><div class="engine-actions">${selectedCheckHtml(isChecked)}<button type="button" class="engine-info-btn" data-stt-info="openai" title="Model details" aria-label="Model details">${sttInfoIcon(false)}</button></div></div><p>Uses OpenAI gpt-transcribe with your personal API key.</p>${engineLanguageHtml()}</div><div class="engine-info-view"><div class="engine-info-head"><div class="engine-info-meta"><strong class="engine-info-title">gpt-transcribe</strong><span class="engine-info-tagline">Automatic AI error correction</span></div><div class="engine-actions">${selectedCheckHtml(isChecked)}<button type="button" class="engine-info-btn active" data-stt-info="openai" title="Close details" aria-label="Close details">${sttInfoIcon(true)}</button></div></div>${engineMetricsHtml([["Accuracy", "93%", 93], ["Speed (API)", speedLabel(TRANSCRIBE_SPEED), speedBarPercent(TRANSCRIBE_SPEED)]])}</div></div>`;
 }
 
 
@@ -774,10 +775,10 @@ function settingsHtml() {
   const shelfItems = removedKeys.map((k) => {
     const def = getBubbleElementDef(k);
     if (!def) return "";
-    return `<button type="button" class="removed-elem-btn" draggable="true" data-shelf-elem="${k}" data-elem-add="${k}" title="Add back ${esc(def.name)} (click or drag onto the bubble)">${def.miniIcon}<span>${esc(def.name)}</span></button>`;
+    return `<button type="button" class="removed-elem-btn" draggable="true" data-shelf-elem="${k}" data-elem-add="${k}" title="Add back ${esc(def.name)} (click or drag onto the bubble)"><span>${esc(def.name)}</span></button>`;
   });
   if (!voiceNoteOn && currentElems.includes("voice")) {
-    shelfItems.push(`<button type="button" class="removed-elem-btn" draggable="true" data-shelf-elem="vnote" data-vnote-add title="Add back ${VOICE_NOTE_DEF.name} (click or drop anywhere on the bubble — it snaps back to the mic)">${VOICE_NOTE_DEF.miniIcon}<span>${VOICE_NOTE_DEF.name}</span></button>`);
+    shelfItems.push(`<button type="button" class="removed-elem-btn" draggable="true" data-shelf-elem="vnote" data-vnote-add title="Add back ${VOICE_NOTE_DEF.name} (click or drop anywhere on the bubble — it snaps back to the mic)"><span>${VOICE_NOTE_DEF.name}</span></button>`);
   }
   const removedShelfHtml = shelfItems.length > 0
     ? `<div class="removed-elements-shelf"><div class="shelf-head"><span class="shelf-label">Removed Elements</span></div><div class="removed-elements-list">${shelfItems.join("")}</div></div>`

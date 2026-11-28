@@ -1767,11 +1767,11 @@ button.saved {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 6px 8px;
+  padding: 6px 10px;
   border-radius: 999px;
-  background: #10b981;
-  border: 1px solid #10b981;
-  color: #ffffff;
+  background: #ffffff;
+  border: 1px solid #ffffff;
+  color: #000000;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -1779,8 +1779,8 @@ button.saved {
 }
 
 .removed-elem-btn:hover {
-  border-color: #10b981;
-  background: #10b981;
+  border-color: #ffffff;
+  background: #ffffff;
   transform: translateY(-0.5px);
 }
 

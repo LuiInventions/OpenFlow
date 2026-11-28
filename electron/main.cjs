@@ -56,6 +56,7 @@ let targetHwnd = 0;
 let notePadId = "";
 let hidingBar = false;
 let screenshotTool = null;
+let screenshotBarBounds = null;
 let pendingRefresh = null;
 let speechChain = Promise.resolve();
 const speechSessions = new Map();
@@ -1342,28 +1343,58 @@ function flameshotExe() {
   return "";
 }
 
-function triggerScreenshot(pid, exe) {
-  if (!chord || chord.killed) return Promise.resolve(false);
-  return new Promise(resolve => {
-    const socket = net.connect(`\\\\.\\pipe\\${pipeName()}`);
-    let settled = false;
-    let response = "";
-    const finish = ok => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      socket.destroy();
-      resolve(ok);
-    };
-    const timer = setTimeout(() => finish(false), 120);
-    socket.on("connect", () => socket.write(`shot ${pid} ${Buffer.from(exe, "utf8").toString("base64")}\n`));
-    socket.on("data", chunk => {
-      response += decodeChunk(chunk);
-      if (response.includes("\n")) finish(response.trim() === "ok");
+async function screenshotRequest(command, pid, exe) {
+  if (!chord || chord.killed) return false;
+  const deadline = Date.now() + 1600;
+  const connectDeadline = Date.now() + 250;
+  while (Date.now() < connectDeadline) {
+    const result = await new Promise(resolve => {
+      const socket = net.connect(`\\\\.\\pipe\\${pipeName()}-Screenshot`);
+      let settled = false, sent = false, response = "";
+      const finish = value => {
+        if (settled) return;
+        settled = true; clearTimeout(timer); socket.destroy(); resolve(value);
+      };
+      const timer = setTimeout(() => finish(sent ? "uncertain" : false), Math.max(1, deadline - Date.now()));
+      socket.on("connect", () => {
+        sent = true;
+        socket.write(`${command} ${pid || 0} ${Buffer.from(exe, "utf8").toString("base64")}\n`);
+      });
+      socket.on("data", chunk => {
+        response += decodeChunk(chunk);
+        if (response.includes("\n")) finish(response.trim() === "ok");
+      });
+      // Only retry connections that could not deliver a request. Retrying a
+      // delivered hotkey could otherwise create two captures.
+      socket.on("error", error => finish(!sent && ["ENOENT", "EBUSY", "ECONNREFUSED"].includes(error.code) ? "retry" : sent ? "uncertain" : false));
+      socket.on("end", () => finish(response.trim() === "ok" ? true : sent && !response.trim() ? "uncertain" : false));
     });
-    socket.on("error", () => finish(false));
-    socket.on("end", () => finish(response.trim() === "ok"));
-  });
+    if (result !== "retry") return result;
+    if (Date.now() + 20 >= connectDeadline) return false;
+    await delay(20);
+  }
+  return false;
+}
+
+async function triggerScreenshot(pid, exe) {
+  const result = await screenshotRequest("open", pid, exe);
+  if (result === true) return true;
+  // A lost reply must not launch a second overlay when the first request did
+  // open selection. Query the actual window before using the cold fallback.
+  return result === "uncertain" && await screenshotRequest("state", pid, exe) === true;
+}
+
+async function waitForScreenshot(pid, exe) {
+  if (await screenshotRequest("state", pid, exe) === true) return true;
+  // Also verify the cold GUI path when the shortcut helper is unavailable.
+  const { desktopCapturer } = require("electron");
+  const deadline = Date.now() + 2000;
+  do {
+    const windows = await desktopCapturer.getSources({ types: ["window"], thumbnailSize: { width: 0, height: 0 } });
+    if (windows.some(window => window.name.toLowerCase() === "flameshot")) return true;
+    await delay(20);
+  } while (Date.now() < deadline);
+  return false;
 }
 
 function getScreenshotTool() {
@@ -1371,12 +1402,17 @@ function getScreenshotTool() {
   const exe = flameshotExe();
   if (!exe) return null;
   screenshotTool = createFlameshot({
-    exe, spawn, prepare: writeFlameshotTheme, delay, trigger: triggerScreenshot,
+    exe, spawn, prepare: writeFlameshotTheme, delay, trigger: triggerScreenshot, waitForCapture: waitForScreenshot,
     hide() {
       hidingBar = true;
       if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.hide();
     },
-    restore() { hidingBar = false; restoreBar(); },
+    restore() {
+      hidingBar = false;
+      if (screenshotBarBounds) placeBar(screenshotBarBounds.width, screenshotBarBounds.height);
+      screenshotBarBounds = null;
+      restoreBar();
+    },
     onError(error) {
       store.addNotification({ title: "Screenshot", body: `Flameshot could not start: ${error.message}` });
     },
@@ -1535,7 +1571,7 @@ const actions = {
       barMenuOpen = Boolean(payload.menuOpen);
     }
     if (!payload || !Number.isFinite(payload.width) || !Number.isFinite(payload.height)) return true;
-    if (hidingBar) return true;
+    if (hidingBar) { screenshotBarBounds = { width: payload.width, height: payload.height }; return true; }
     placeBar(payload.width, payload.height);
     if (overlayWindow && !overlayWindow.isDestroyed()) {
       if (!overlayWindow.isVisible()) overlayWindow.showInactive();

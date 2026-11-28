@@ -4,7 +4,7 @@ const path = require("node:path");
 
 // Keep Qt loaded between screenshots. The native shortcut bridge asks the
 // resident daemon to capture; the CLI remains a cold-start/crash fallback.
-function createFlameshot({ exe, spawn, prepare, hide, restore, delay, onError, trigger = async () => false }) {
+function createFlameshot({ exe, spawn, prepare, hide, restore, delay, onError, trigger = async () => false, waitForCapture = async () => false }) {
   let prepared = false;
   let daemon = null;
   let opening = null;
@@ -42,18 +42,21 @@ function createFlameshot({ exe, spawn, prepare, hide, restore, delay, onError, t
         configure();
         hide();
         // Two compositor frames let the bubble disappear from the captured
-        // desktop. No process scan, daemon restart or Qt startup sleep here.
+        // desktop. No PowerShell process scan, daemon restart or Qt startup sleep.
         await delay(32);
         const captured = await trigger(daemon?.pid || 0, exe);
         if (!captured) {
+          const child = launch(["gui"]);
           await new Promise((resolve, reject) => {
-            const child = launch(["gui"]);
             child.once("error", reject);
             child.once("spawn", resolve);
           });
+          if (!await waitForCapture(child.pid, exe)) throw new Error("Screenshot selection did not open. Please try again.");
+          if (!daemon) warm();
         }
-        // This only restores the bubble; capture is already running.
-        await delay(800);
+        // A native acknowledgement means the selection window is visible.
+        // Release the request immediately, so dismiss-and-click cannot lose a
+        // new screenshot inside an unrelated fixed cooldown.
         return true;
       } catch (error) {
         onError(error);

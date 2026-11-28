@@ -17,11 +17,11 @@ The compact dark-black floating bubble rests at the bottom of your screen. Hold 
 ---
 
 <!-- Keep only the latest release notes here; older releases belong in GitHub Releases. -->
-## New in 1.5.42
+## New in 1.5.43
 
-- **Faster screenshots:** the Bubble screenshot action uses the resident Flameshot daemon through the existing native bridge, avoiding another Qt process and per-click PowerShell scans. The regular Flameshot GUI remains available if the bridge or daemon is unavailable.
-- **Clean Removed Elements:** removed items are solid green (`#10b981`) with balanced padding and no plus badge; clicking and dragging still restore them.
-- **Compact AI model cards:** both speech-model cards end directly below Multilingual, with equal heights and room for wrapped descriptions, details and download progress in Light and Dark.
+- **Reliable repeated screenshots:** Screenshot now confirms the visible selection window, uses an independent native channel, and releases the action immediately when ready. Dismissing a capture and clicking again no longer encounters the fixed 800 ms cooldown. Lost replies are checked before falling back, and the Bubble applies geometry updates received while hidden.
+- **White Removed Elements:** plain white boxes with black text and no leading symbols or plus badges. Click and drag restoration still work.
+- **Updated speed details:** Parakeet displays **5,9×** and gpt-transcribe **26,0×**. Both speed bars use the same scale.
 
 ## Floating Bubble & Symbols
 
